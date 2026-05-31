@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
         <I18nLayout>
           <main className="mx-auto max-w-2xl px-4 py-8">

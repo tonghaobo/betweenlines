@@ -60,14 +60,15 @@ A: 消息内容3
 ..."""
 
 
-class OpenAIService:
-    def __init__(self, api_key: str, model: str = "doubao-pro-32k", base_url: str = "https://ark.cn-beijing.volces.com/api/v3"):
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        self.model = model
-        # 多模态模型用于截图分析
-        self.vision_model = "doubao-vision-pro-32k"
+class DoubaoService:
+    def __init__(self):
+        from app.core.config import settings
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+        self.model = settings.OPENAI_MODEL
+        self.vision_model = settings.VISION_MODEL
 
     async def analyze_chat(self, chat_content: str) -> ChatAnalysisResponse:
+        from app.core.config import settings
         user_prompt = self._build_user_prompt(chat_content)
 
         try:
@@ -77,8 +78,8 @@ class OpenAIService:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.7,
-                max_tokens=1000,
+                temperature=settings.TEMPERATURE,
+                max_tokens=settings.MAX_TOKENS,
             )
 
             content = response.choices[0].message.content
@@ -93,6 +94,7 @@ class OpenAIService:
 
     async def extract_text_from_screenshot(self, image_bytes: bytes) -> str:
         """使用多模态模型从聊天截图中提取文字"""
+        from app.core.config import settings
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         try:
@@ -113,8 +115,8 @@ class OpenAIService:
                         ],
                     }
                 ],
-                temperature=0.3,
-                max_tokens=2000,
+                temperature=settings.VISION_TEMPERATURE,
+                max_tokens=settings.VISION_MAX_TOKENS,
             )
 
             content = response.choices[0].message.content

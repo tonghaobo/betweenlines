@@ -8,7 +8,7 @@ from app.schemas.chat import (
     FeedbackRequest,
     FeedbackResponse,
 )
-from app.services.openai_service import OpenAIService
+from app.services.doubao_service import DoubaoService
 from app.services.chat_cleaner import clean_chat_content, validate_chat_format, is_potentially_harmful
 from app.core.config import settings
 
@@ -16,28 +16,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
-# 截图上传限制：最大 10MB
-MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024
-ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 
-
-def get_openai_service() -> OpenAIService:
+def get_doubao_service() -> DoubaoService:
     if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your_doubao_api_key_here":
         raise HTTPException(
             status_code=500,
             detail="Doubao API key not configured. Please set OPENAI_API_KEY in .env",
         )
-    return OpenAIService(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.OPENAI_MODEL,
-        base_url=settings.OPENAI_BASE_URL,
-    )
+    return DoubaoService()
 
 
 @router.post("/analyze", response_model=ChatAnalysisResponse)
 async def analyze_chat(
     request: ChatAnalysisRequest,
-    service: OpenAIService = Depends(get_openai_service),
+    service: DoubaoService = Depends(get_doubao_service),
 ):
     start_time = time.time()
     chat_length = len(request.chat_content)
@@ -99,13 +91,13 @@ async def analyze_chat(
 @router.post("/analyze-screenshot", response_model=ScreenshotAnalysisResponse)
 async def analyze_screenshot(
     file: UploadFile = File(...),
-    service: OpenAIService = Depends(get_openai_service),
+    service: DoubaoService = Depends(get_doubao_service),
 ):
     """上传聊天截图，提取文字并返回供用户确认"""
     start_time = time.time()
 
     # 验证文件类型
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
+    if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"不支持的文件格式：{file.content_type}。请上传 PNG、JPEG 或 WebP 格式的图片。",
@@ -113,7 +105,7 @@ async def analyze_screenshot(
 
     # 读取并验证文件大小
     image_bytes = await file.read()
-    if len(image_bytes) > MAX_SCREENSHOT_SIZE:
+    if len(image_bytes) > settings.MAX_SCREENSHOT_SIZE:
         raise HTTPException(
             status_code=400,
             detail=f"图片过大（{len(image_bytes) / 1024 / 1024:.1f}MB），请上传不超过 10MB 的图片。",

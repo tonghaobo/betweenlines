@@ -2,19 +2,19 @@
 Prompt 效果测试脚本
 用于测试不同聊天场景下的 AI 分析质量
 """
+import sys
 import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import json
 import asyncio
 from openai import AsyncOpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
+from app.core.config import settings
 
 client = AsyncOpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"),
+    api_key=settings.OPENAI_API_KEY,
+    base_url=settings.OPENAI_BASE_URL,
 )
-MODEL = os.getenv("OPENAI_MODEL", "doubao-pro-32k")
 
 SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。
 
@@ -108,13 +108,13 @@ async def test_case(case: dict):
 {{"chat_status": "...", "analysis": "...", "issues": [...], "risks": [...], "reply_suggestions": {{"natural": "...", "humorous": "...", "mature": "..."}}, "timing_advice": "..."}}"""
 
     response = await client.chat.completions.create(
-        model=MODEL,
+        model=settings.OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.7,
-        max_tokens=1000,
+        temperature=settings.TEMPERATURE,
+        max_tokens=settings.MAX_TOKENS,
     )
 
     content = response.choices[0].message.content
