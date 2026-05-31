@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { submitFeedback } from "@/lib/api";
+import { useI18n } from "@/contexts/I18nContext";
 
 export function FeedbackSection() {
+  const { t } = useI18n();
   const [voted, setVoted] = useState<boolean | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
@@ -12,7 +14,7 @@ export function FeedbackSection() {
     try {
       await submitFeedback(helpful);
     } catch {
-      // 静默失败，不影响用户体验
+      // Silently fail
     }
     setTimeout(() => setSubmitted(true), 300);
   };
@@ -21,7 +23,7 @@ export function FeedbackSection() {
     return (
       <div className="w-full max-w-2xl card text-center animate-fade-in">
         <p className="text-gray-500 text-sm">
-          {voted ? "🎉" : "😔"} Thanks for your feedback!
+          {voted ? "🎉" : "😔"} {t.feedback.thanks}
         </p>
       </div>
     );
@@ -29,7 +31,7 @@ export function FeedbackSection() {
 
   return (
     <div className="w-full max-w-2xl card text-center animate-slide-up">
-      <p className="text-gray-600 mb-4 text-sm">Was this analysis helpful?</p>
+      <p className="text-gray-600 mb-4 text-sm">{t.feedback.question}</p>
       <div className="flex justify-center gap-4">
         <button
           onClick={() => handleVote(true)}
@@ -39,7 +41,7 @@ export function FeedbackSection() {
               : "bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-700"
           }`}
         >
-          👍 Helpful
+          {t.feedback.helpful}
         </button>
         <button
           onClick={() => handleVote(false)}
@@ -49,7 +51,7 @@ export function FeedbackSection() {
               : "bg-gray-50 text-gray-600 hover:bg-red-50 hover:text-red-700"
           }`}
         >
-          👎 Not helpful
+          {t.feedback.notHelpful}
         </button>
       </div>
     </div>

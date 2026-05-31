@@ -27,6 +27,12 @@ class ChatAnalysisRequest(BaseModel):
     )
 
 
+class ScreenshotAnalysisResponse(BaseModel):
+    """截图上传后先返回提取的文字，供用户确认后再分析"""
+    extracted_text: str = Field(..., description="从截图中提取的聊天文字")
+    image_preview: Optional[str] = Field(None, description="压缩后的预览图base64（可选）")
+
+
 # 响应 Schema
 class ReplySuggestions(BaseModel):
     natural: str = Field(..., description="自然版回复")

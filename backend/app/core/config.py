@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# override=True 确保 .env 文件值覆盖系统环境变量
+load_dotenv(override=True)
 
 
 class Settings:

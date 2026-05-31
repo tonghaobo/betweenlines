@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 
 interface ReplyCardProps {
   style: string;
@@ -18,6 +19,7 @@ export function ReplyCard({
   colorClass,
   delay,
 }: ReplyCardProps) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -59,7 +61,7 @@ export function ReplyCard({
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}
         >
-          {copied ? "✓ Copied" : "Copy"}
+          {copied ? t.result.copied : t.result.copy}
         </button>
       </div>
 

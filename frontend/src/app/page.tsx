@@ -8,8 +8,10 @@ import { useChatAnalysis } from "@/lib/useChatAnalysis";
 import { ResultPage } from "@/components/result/ResultPage";
 import { FeedbackSection } from "@/components/feedback/FeedbackSection";
 import { LoadingOverlay } from "@/components/ui/LoadingOverlay";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function Home() {
+  const { t } = useI18n();
   const { result, isLoading, error, errorType, analyze, reset } = useChatAnalysis();
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -23,7 +25,7 @@ export default function Home() {
     reset();
   };
 
-  // Loading 状态
+  // Loading state
   if (isLoading) {
     return (
       <div className="flex flex-col items-center space-y-8">
@@ -34,7 +36,7 @@ export default function Home() {
     );
   }
 
-  // 结果页
+  // Result page
   if (result) {
     return (
       <div className="flex flex-col items-center space-y-8">
@@ -44,7 +46,7 @@ export default function Home() {
                      flex items-center gap-1 group"
         >
           <span className="group-hover:-translate-x-1 transition-transform">←</span>
-          Analyze another chat
+          {t.errors.backToHome}
         </button>
         <div ref={resultRef}>
           <ResultPage data={result} />
@@ -54,7 +56,7 @@ export default function Home() {
     );
   }
 
-  // 首页
+  // Home page
   return (
     <div className="flex flex-col items-center space-y-8">
       <HeroSection />
@@ -76,7 +78,7 @@ export default function Home() {
                 onClick={reset}
                 className="mt-1 text-red-600 underline hover:no-underline text-xs"
               >
-                Try again
+                {t.errors.tryAgain}
               </button>
             </div>
           </div>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, type DragEvent } from "react";
+import { useI18n } from "@/contexts/I18nContext";
+import { analyzeScreenshot, type ScreenshotAnalysisResponse } from "@/lib/api";
 
 interface ChatInputProps {
   onSubmit: (text: string) => void;
@@ -8,14 +10,29 @@ interface ChatInputProps {
   initialText?: string;
 }
 
+type InputMode = "text" | "screenshot";
+
 export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputProps) {
+  const { t } = useI18n();
+  const [mode, setMode] = useState<InputMode>("text");
+
+  // Text mode state
   const [text, setText] = useState(initialText);
   const [charCount, setCharCount] = useState(initialText.length);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Screenshot mode state
+  const [dragOver, setDragOver] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const MAX_CHARS = 5000;
   const MIN_CHARS = 10;
 
+  // --- Text mode handlers ---
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     if (value.length <= MAX_CHARS) {
@@ -39,56 +56,276 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
 
   const isValid = text.trim().length >= MIN_CHARS;
 
+  // --- Screenshot mode handlers ---
+  const validateFile = (file: File): string | null => {
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return "不支持的文件格式，请上传 PNG、JPEG 或 WebP 图片。";
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return "图片大小超过 10MB，请压缩后再上传。";
+    }
+    return null;
+  };
+
+  const processScreenshot = useCallback(async (file: File) => {
+    const error = validateFile(file);
+    if (error) {
+      setScreenshotError(error);
+      return;
+    }
+
+    setScreenshotError(null);
+    setSelectedFile(file);
+    setExtracting(true);
+
+    try {
+      const result: ScreenshotAnalysisResponse = await analyzeScreenshot(file);
+      setExtractedText(result.extracted_text);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "截图分析失败";
+      setScreenshotError(msg);
+      setSelectedFile(null);
+    } finally {
+      setExtracting(false);
+    }
+  }, []);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processScreenshot(file);
+    }
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processScreenshot(file);
+    }
+  };
+
+  const handleConfirmExtracted = () => {
+    if (extractedText && !isLoading) {
+      onSubmit(extractedText.trim());
+    }
+  };
+
+  const handleCancelExtract = () => {
+    setExtractedText(null);
+    setSelectedFile(null);
+    setScreenshotError(null);
+  };
+
+  const switchMode = (newMode: InputMode) => {
+    setMode(newMode);
+    setExtractedText(null);
+    setSelectedFile(null);
+    setScreenshotError(null);
+  };
+
   return (
     <div className="w-full max-w-lg space-y-3">
-      <div className="relative">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={`Paste your chat here...
-Example format:
-A: 今天在干嘛呀
-B: 刚下班，好累哈哈
-A: 辛苦啦，吃饭了吗
-B: 还没呢`}
-          className="w-full h-44 p-4 border border-gray-200 rounded-xl resize-none
-                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                     text-gray-700 placeholder:text-gray-400 text-sm leading-relaxed
-                     transition-shadow duration-200"
-          disabled={isLoading}
-        />
-        <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-          {charCount}/{MAX_CHARS}
-        </div>
+      {/* Mode switcher tabs */}
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => switchMode("text")}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            mode === "text"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          {t.chatInput.analyze}
+        </button>
+        <button
+          onClick={() => switchMode("screenshot")}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            mode === "screenshot"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          {t.chatInput.uploadScreenshot}
+        </button>
       </div>
 
-      {text.length > 0 && !isValid && (
-        <p className="text-xs text-amber-600">
-          Please enter at least {MIN_CHARS} characters for analysis.
-        </p>
+      {/* Text input mode */}
+      {mode === "text" && (
+        <>
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder={t.chatInput.placeholder}
+              className="w-full h-44 p-4 border border-gray-200 rounded-xl resize-none
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         text-gray-700 placeholder:text-gray-400 text-sm leading-relaxed
+                         transition-shadow duration-200"
+              disabled={isLoading}
+            />
+            <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+              {t.chatInput.charCount
+                .replace("{current}", String(charCount))
+                .replace("{max}", String(MAX_CHARS))}
+            </div>
+          </div>
+
+          {text.length > 0 && !isValid && (
+            <p className="text-xs text-amber-600">
+              {t.chatInput.minCharsError.replace("{min}", String(MIN_CHARS))}
+            </p>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={!isValid || isLoading}
+            className="btn-primary w-full flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <LoadingSpinner />
+                {t.chatInput.analyzing}
+              </>
+            ) : (
+              t.chatInput.analyze
+            )}
+          </button>
+
+          <p className="text-xs text-gray-400 text-center">
+            {t.chatInput.press}{" "}
+            <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">⌘</kbd>
+            + <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">{t.chatInput.enter}</kbd>{" "}
+            {t.chatInput.toSubmit}
+          </p>
+        </>
       )}
 
-      <button
-        onClick={handleSubmit}
-        disabled={!isValid || isLoading}
-        className="btn-primary w-full flex items-center justify-center gap-2"
-      >
-        {isLoading ? (
-          <>
-            <LoadingSpinner />
-            Analyzing...
-          </>
-        ) : (
-          "Analyze Chat"
-        )}
-      </button>
+      {/* Screenshot upload mode */}
+      {mode === "screenshot" && (
+        <>
+          {!extractedText && (
+            <>
+              {/* Drop zone */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-full h-44 flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl cursor-pointer transition-all
+                  ${dragOver
+                    ? "border-blue-400 bg-blue-50"
+                    : "border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100"
+                  }
+                  ${extracting ? "pointer-events-none opacity-60" : ""}
+                  ${isLoading ? "pointer-events-none opacity-50" : ""}
+                `}
+              >
+                {extracting ? (
+                  <>
+                    <LoadingSpinner />
+                    <span className="text-sm text-gray-500">{t.chatInput.extracting}</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-10 h-10 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">{t.chatInput.dragOrClick}</p>
+                      <p className="text-xs text-gray-400 mt-1">{t.chatInput.supportedFormats}</p>
+                    </div>
+                  </>
+                )}
+              </div>
 
-      <p className="text-xs text-gray-400 text-center">
-        Press <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">⌘</kbd>
-        + <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">Enter</kbd> to submit
-      </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* Screenshot error */}
+              {screenshotError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                  {screenshotError}
+                </div>
+              )}
+
+              {/* Paste support for screenshots */}
+              <p className="text-xs text-gray-400 text-center">
+                也可以直接 <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">Ctrl+V</kbd>{" "}
+                粘贴截图
+              </p>
+            </>
+          )}
+
+          {/* Extracted text confirmation */}
+          {extractedText && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">{t.chatInput.extractedPreview}</p>
+              <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-700 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
+                {extractedText}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCancelExtract}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={isLoading}
+                >
+                  {t.chatInput.cancelExtract}
+                </button>
+                <button
+                  onClick={handleConfirmExtracted}
+                  disabled={isLoading}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner />
+                      {t.chatInput.analyzing}
+                    </>
+                  ) : (
+                    t.chatInput.confirmAnalyze
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

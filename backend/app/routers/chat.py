@@ -1,9 +1,10 @@
 import time
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
 from app.schemas.chat import (
     ChatAnalysisRequest,
     ChatAnalysisResponse,
+    ScreenshotAnalysisResponse,
     FeedbackRequest,
     FeedbackResponse,
 )
@@ -14,6 +15,10 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
+
+# 截图上传限制：最大 10MB
+MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 
 
 def get_openai_service() -> OpenAIService:
@@ -89,6 +94,60 @@ async def analyze_chat(
             )
         except Exception as log_error:
             logger.warning(f"Failed to save analysis log: {log_error}")
+
+
+@router.post("/analyze-screenshot", response_model=ScreenshotAnalysisResponse)
+async def analyze_screenshot(
+    file: UploadFile = File(...),
+    service: OpenAIService = Depends(get_openai_service),
+):
+    """上传聊天截图，提取文字并返回供用户确认"""
+    start_time = time.time()
+
+    # 验证文件类型
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件格式：{file.content_type}。请上传 PNG、JPEG 或 WebP 格式的图片。",
+        )
+
+    # 读取并验证文件大小
+    image_bytes = await file.read()
+    if len(image_bytes) > MAX_SCREENSHOT_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"图片过大（{len(image_bytes) / 1024 / 1024:.1f}MB），请上传不超过 10MB 的图片。",
+        )
+
+    if len(image_bytes) == 0:
+        raise HTTPException(status_code=400, detail="上传的图片为空，请重新选择。")
+
+    logger.info(f"Screenshot upload: {file.filename}, size={len(image_bytes)}, type={file.content_type}")
+
+    try:
+        extracted_text = await service.extract_text_from_screenshot(image_bytes)
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"Screenshot text extracted in {duration_ms:.0f}ms, length={len(extracted_text)}")
+
+        if not extracted_text or len(extracted_text.strip()) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="未能从图片中提取到足够的聊天文字。请确保截图包含清晰的聊天消息。",
+            )
+
+        return ScreenshotAnalysisResponse(
+            extracted_text=extracted_text.strip(),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Screenshot analysis error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="截图分析失败，请稍后重试。",
+        )
 
 
 @router.post("/feedback", response_model=FeedbackResponse)

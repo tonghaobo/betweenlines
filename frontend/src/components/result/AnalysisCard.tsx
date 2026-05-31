@@ -1,3 +1,5 @@
+import { useI18n } from "@/contexts/I18nContext";
+
 interface AnalysisCardProps {
   analysis: string;
   issues: string[];
@@ -5,11 +7,13 @@ interface AnalysisCardProps {
 }
 
 export function AnalysisCard({ analysis, issues, risks }: AnalysisCardProps) {
+  const { t } = useI18n();
+
   return (
     <div className="card space-y-5 animate-fade-in">
       <div>
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">
-          Why this status?
+          {t.result.whyThisStatus}
         </h3>
         <p className="text-gray-700 leading-relaxed">{analysis}</p>
       </div>
@@ -17,7 +21,7 @@ export function AnalysisCard({ analysis, issues, risks }: AnalysisCardProps) {
       {issues.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-amber-600 uppercase tracking-wider mb-2">
-            Areas to Improve
+            {t.result.areasToImprove}
           </h3>
           <ul className="space-y-1.5">
             {issues.map((issue, i) => (
@@ -36,7 +40,7 @@ export function AnalysisCard({ analysis, issues, risks }: AnalysisCardProps) {
       {risks.length > 0 && (
         <div className="bg-red-50 border border-red-100 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-red-600 uppercase tracking-wider mb-2">
-            ⚠️ Risk Alert
+            {t.result.riskAlert}
           </h3>
           <ul className="space-y-1">
             {risks.map((risk, i) => (

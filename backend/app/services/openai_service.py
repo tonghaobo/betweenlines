@@ -1,4 +1,5 @@
 import json
+import base64
 import logging
 from typing import Optional
 from openai import AsyncOpenAI
@@ -40,10 +41,31 @@ SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。
 严格 JSON，不要输出任何非 JSON 内容。"""
 
 
+SCREENSHOT_EXTRACT_PROMPT = """你是一个聊天截图文字提取助手。
+
+你的任务：
+从聊天截图（可能是微信、QQ 等即时通讯工具的截图）中提取所有可见的聊天消息。
+
+要求：
+1. 按时间顺序逐条提取每条消息
+2. 区分不同发言人（用 A: B: 格式，A 为对方，B 为用户自己；如果你无法判断谁是用户，用 A: B: 标注两个对话者）
+3. 保留表情符号的文字描述（如 [笑哭]、[点赞]）
+4. 忽略系统提示消息（如"对方正在输入"、时间戳、撤回提示等）
+5. 仅输出聊天文字内容，不要输出任何其他说明
+
+输出格式：
+A: 消息内容1
+B: 消息内容2
+A: 消息内容3
+..."""
+
+
 class OpenAIService:
     def __init__(self, api_key: str, model: str = "doubao-pro-32k", base_url: str = "https://ark.cn-beijing.volces.com/api/v3"):
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self.model = model
+        # 多模态模型用于截图分析
+        self.vision_model = "doubao-vision-pro-32k"
 
     async def analyze_chat(self, chat_content: str) -> ChatAnalysisResponse:
         user_prompt = self._build_user_prompt(chat_content)
@@ -67,6 +89,42 @@ class OpenAIService:
 
         except Exception as e:
             logger.error(f"Doubao API error: {str(e)}")
+            raise
+
+    async def extract_text_from_screenshot(self, image_bytes: bytes) -> str:
+        """使用多模态模型从聊天截图中提取文字"""
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.vision_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/png;base64,{image_base64}"},
+                            },
+                            {
+                                "type": "text",
+                                "text": SCREENSHOT_EXTRACT_PROMPT,
+                            },
+                        ],
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=2000,
+            )
+
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Vision model returned empty response")
+
+            return content.strip()
+
+        except Exception as e:
+            logger.error(f"Vision API error: {str(e)}")
             raise
 
     def _build_user_prompt(self, chat_content: str) -> str:

@@ -1,5 +1,6 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const REQUEST_TIMEOUT = 30000;
+const SCREENSHOT_TIMEOUT = 60000; // 截图分析需要更长时间
 const MAX_RETRIES = 2;
 
 export interface ChatAnalysisResponse {
@@ -13,6 +14,11 @@ export interface ChatAnalysisResponse {
     mature: string;
   };
   timing_advice: string;
+}
+
+export interface ScreenshotAnalysisResponse {
+  extracted_text: string;
+  image_preview?: string;
 }
 
 class ApiError extends Error {
@@ -121,6 +127,37 @@ export async function analyzeChat(
 
     return data as ChatAnalysisResponse;
   });
+}
+
+export async function analyzeScreenshot(
+  file: File,
+): Promise<ScreenshotAnalysisResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/api/v1/analyze-screenshot`,
+    {
+      method: "POST",
+      body: formData,
+      // 不设置 Content-Type，让浏览器自动设置 multipart/form-data 边界
+    },
+    SCREENSHOT_TIMEOUT,
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    const detail =
+      errorBody.detail || `Upload failed with status ${response.status}`;
+    throw new ApiError(detail, response.status);
+  }
+
+  const data = await response.json();
+  if (!data.extracted_text) {
+    throw new ApiError("No text extracted from screenshot.", response.status);
+  }
+
+  return data as ScreenshotAnalysisResponse;
 }
 
 export async function submitFeedback(
