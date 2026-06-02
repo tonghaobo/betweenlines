@@ -20,13 +20,17 @@ frontend/src/
 │   ├── I18nLayout.tsx      # 国际化布局包装器
 │   ├── globals.css         # Tailwind + 自定义样式
 │   ├── robots.ts           # SEO robots.txt
-│   └── sitemap.ts          # SEO sitemap
+│   ├── sitemap.ts          # SEO sitemap
+│   └── admin/
+│       └── metrics/
+│           └── page.tsx    # 数据指标面板 → 访问 /admin/metrics
 ├── components/             # UI 组件
 │   ├── hero/               # 首页 Hero 区域
 │   │   ├── HeroSection.tsx
 │   │   └── ExampleChats.tsx
 │   ├── chat-input/         # 输入框
-│   │   └── ChatInput.tsx   # 文本 + 截图双模式
+│   │   ├── ChatInput.tsx          # 文本 + 截图双模式
+│   │   └── RelationshipSelector.tsx # 关系类型选择器
 │   ├── result/             # 分析结果
 │   │   ├── ResultPage.tsx       # 结果页容器
 │   │   ├── StatusBadge.tsx      # 状态标签 (5种)
@@ -38,14 +42,18 @@ frontend/src/
 │   │   ├── FeedbackSection.tsx    # 👍/👎 + 原因选择 + 评论
 │   │   ├── ReplyAdoptionCard.tsx  # 回复采用率采集
 │   │   └── FollowUpReminder.tsx   # 24h 后回访浮层
+│   ├── share/              # 分享功能
+│   │   ├── ShareButton.tsx      # 分享按钮 + 平台选择面板
+│   │   └── ShareCard.tsx        # 分享卡片渲染 (被截图)
 │   └── ui/                 # 通用 UI
 │       ├── LangSwitcher.tsx     # 语言切换按钮
 │       ├── LoadingOverlay.tsx   # 加载动画
 │       ├── SkeletonCard.tsx     # 骨架屏
-│       └── EmptyState.tsx       # 空状态
+│       └── UsageLimitModal.tsx  # 配额耗尽弹窗
 ├── lib/                    # 工具库
 │   ├── api.ts              # API 调用层 (超时/重试/错误处理)
 │   ├── useChatAnalysis.ts  # 分析状态管理 Hook
+│   ├── analytics.ts        # 埋点 SDK (匿名ID + 事件上报)
 │   └── cache.ts            # 客户端缓存
 ├── contexts/               # React Context
 │   └── I18nContext.tsx     # 国际化 (中/英)
@@ -186,6 +194,34 @@ frontend/src/
 - 429 → 不重试（限流）
 - 超时 → 提示"请求超时"
 - 网络错误 → 提示"网络错误"
+
+---
+
+## 数据指标面板 (Metrics Dashboard)
+
+**访问路径**：`/admin/metrics`
+
+**组件**：`app/admin/metrics/page.tsx`
+
+**数据来源**：`GET /api/v1/metrics` → 后端从 `events` 表聚合计算
+
+**展示指标**：
+
+| 类别 | 指标 | 数据字段 |
+|------|------|---------|
+| 用户 | DAU（日活） | `dau` |
+| 留存 | D1 留存率 | `d1_retention` |
+| 留存 | D7 留存率 | `d7_retention` |
+| 分析 | 总分析次数 | `total_analyses` |
+| 分析 | 有帮助率 | `helpful_rate` |
+| 分析 | 回复采纳率 | `reply_adoption_rate` |
+| 分析 | 人均分析次数 | `analysis_count_per_user` |
+| 分析 | 平均分析耗时 | `avg_analysis_duration_ms` |
+| 分享 | 分享转化率 | `share_conversion_rate` |
+| 分享 | 分享点击 | `share_clicked_count` |
+| 分享 | 分享成功 | `share_succeeded_count` |
+
+**本地开发访问**：`http://localhost:3000/admin/metrics`
 
 ---
 

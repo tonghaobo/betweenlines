@@ -52,6 +52,10 @@ backend/
 | `POST` | `/api/v1/feedback` | 用户反馈（含原因+评论） | 无 |
 | `POST` | `/api/v1/outcome` | 结果追踪 | 无 |
 | `GET` | `/api/v1/stats` | 反馈+结果统计 | 无 |
+| `GET` | `/api/v1/usage` | 查询用户当日配额 | 无 |
+| `POST` | `/api/v1/track` | 埋点事件上报 | 无 |
+| `POST` | `/api/v1/share-reward` | 分享奖励领取 | 无 |
+| `GET` | `/api/v1/metrics` | 数据指标面板 | 无 |
 
 ---
 
@@ -263,6 +267,49 @@ class OutcomeRequest(BaseModel):
     reply_used: str              # sent / not_sent / modified
     outcome: str                 # more_positive / about_same / colder / no_reply / prefer_not
 ```
+
+### MetricsResponse
+
+```python
+class MetricsResponse(BaseModel):
+    dau: int                          # 日活
+    d1_retention: float               # 次日留存率
+    d7_retention: float               # 七日留存率
+    total_analyses: int               # 总分析次数
+    helpful_rate: float               # 有帮助率
+    reply_adoption_rate: float        # 回复采纳率
+    analysis_count_per_user: float    # 人均分析次数
+    avg_analysis_duration_ms: int     # 平均分析耗时（毫秒）
+    share_conversion_rate: float      # 分享转化率
+    share_clicked_count: int          # 分享点击次数
+    share_succeeded_count: int        # 分享成功次数
+```
+
+**访问方式**：前端 `/admin/metrics` 页面 → 调用 `GET /api/v1/metrics`
+
+---
+
+## 数据指标面板（Metrics Dashboard）
+
+**路径**：`/admin/metrics`
+
+**数据来源**：`GET /api/v1/metrics`（后端从 events 表聚合计算）
+
+**展示指标**：
+
+| 类别 | 指标 | 说明 |
+|------|------|------|
+| 用户 | DAU | 当日活跃用户数 |
+| 留存 | D1 Retention | 次日回访率 |
+| 留存 | D7 Retention | 七日后回访率 |
+| 分析 | 总分析次数 | 成功分析总量 |
+| 分析 | 有帮助率 | 用户认为有帮助的比例 |
+| 分析 | 回复采纳率 | 用户使用了建议回复的比例 |
+| 分析 | 人均分析次数 | 每个用户平均分析次数 |
+| 分析 | 平均分析耗时 | 从提交到获得结果的平均时间 |
+| 分享 | 分享转化率 | 分享成功 / 分享点击 |
+| 分享 | 分享点击 | 分享按钮点击总次数 |
+| 分享 | 分享成功 | 分享操作成功总次数 |
 
 ---
 

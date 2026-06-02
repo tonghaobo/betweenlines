@@ -47,6 +47,9 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
   const [activePlatform, setActivePlatform] = useState<string>("");
   const [lastPlatform, setLastPlatform] = useState<string>("");
   const [lastShareMethod, setLastShareMethod] = useState<ShareMethod>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string>("");
+  const [previewPlatform, setPreviewPlatform] = useState<string>("");
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleOpen = () => {
@@ -57,6 +60,8 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
     setActivePlatform("");
     setLastPlatform("");
     setLastShareMethod(null);
+    setShowPreview(false);
+    setPreviewBlobUrl("");
   };
 
   const generateHash = useCallback((): string => {
@@ -160,11 +165,11 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
         return;
       }
 
-      // Strategy 3: Open image in popup for manual copy (Safari/Firefox fallback)
+      // Strategy 3: Show inline preview modal (Safari/Firefox fallback)
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "width=600,height=800");
-      // Keep URL alive long enough for popup to load, revoke after 60s
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setPreviewBlobUrl(url);
+      setPreviewPlatform(platformKey);
+      setShowPreview(true);
       await onShareSuccess(`preview_${platformKey}`, platformKey, "preview");
     } catch (err) {
       console.error("Share failed:", err);
@@ -376,6 +381,74 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
         <p className="text-xs text-center text-emerald-600 font-medium">
           {rewardMsg}
         </p>
+      )}
+
+      {/* Preview modal: shown when clipboard copy fails, user needs manual copy */}
+      {showPreview && previewBlobUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => {
+            URL.revokeObjectURL(previewBlobUrl);
+            setShowPreview(false);
+            setPreviewBlobUrl("");
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: instruction */}
+            <div className="px-5 py-4 border-b border-gray-100">
+              <p className="text-sm font-medium text-gray-800">
+                {t.share.openPreviewToCopy.replace(
+                  "{platform}",
+                  t.share.platforms[previewPlatform as keyof typeof t.share.platforms] || previewPlatform
+                )}
+              </p>
+            </div>
+
+            {/* Image */}
+            <div className="p-4 flex justify-center bg-gray-50">
+              <img
+                src={previewBlobUrl}
+                alt="Share preview"
+                className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-md select-all"
+              />
+            </div>
+
+            {/* Footer actions */}
+            <div className="px-5 py-3 flex items-center justify-between border-t border-gray-100">
+              <button
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.download = "betweenlines-share.png";
+                  link.href = previewBlobUrl;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 rounded-lg
+                           hover:bg-gray-100 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {t.share.saveImage}
+              </button>
+              <button
+                onClick={() => {
+                  URL.revokeObjectURL(previewBlobUrl);
+                  setShowPreview(false);
+                  setPreviewBlobUrl("");
+                }}
+                className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg
+                           hover:bg-blue-700 transition-colors"
+              >
+                {t.share.closePreview}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
