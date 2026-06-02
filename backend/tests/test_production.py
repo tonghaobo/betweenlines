@@ -1,6 +1,6 @@
 """
 生产环境验证脚本
-使用方法：PROD_URL=https://chatcoach-api.railway.app python tests/test_production.py
+使用方法：PROD_URL=https://betweenlines-api.railway.app python tests/test_production.py
 """
 import os
 import httpx
@@ -26,7 +26,7 @@ async def test_cors():
         response = await client.options(
             f"{PROD_URL}/api/v1/analyze",
             headers={
-                "Origin": "https://chatcoach.vercel.app",
+                "Origin": "https://betweenlines.vercel.app",
                 "Access-Control-Request-Method": "POST",
             },
         )

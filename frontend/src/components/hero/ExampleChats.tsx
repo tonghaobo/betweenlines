@@ -3,24 +3,24 @@ import { useI18n } from "@/contexts/I18nContext";
 const examples = [
   {
     labelKey: "casual" as const,
-    content: `A: 今天在干嘛呀
-B: 刚下班，好累哈哈
-A: 辛苦啦，吃饭了吗
-B: 还没呢`,
+    content: `她: 今天在干嘛呀
+我: 刚下班，好累哈哈
+她: 辛苦啦，吃饭了吗
+我: 还没呢`,
   },
   {
     labelKey: "shortReplies" as const,
-    content: `A: 周末有什么安排吗
-B: 嗯嗯
-A: 最近有部电影还不错
-B: 哈哈哈`,
+    content: `他: 周末有什么安排吗
+我: 嗯嗯
+他: 最近有部电影还不错
+我: 哈哈哈`,
   },
   {
     labelKey: "gettingCold" as const,
-    content: `A: 你平时喜欢做什么呀
-B: 没什么特别的
-A: 那你喜欢看电影吗
-B: 还行`,
+    content: `她: 你平时喜欢做什么呀
+我: 没什么特别的
+她: 那你喜欢看电影吗
+我: 还行`,
   },
 ];
 

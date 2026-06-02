@@ -297,8 +297,8 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title="Chat Coach API",
-    description="Chat Coach - AI-powered chat analysis and reply suggestions",
+    title="BetweenLines API",
+    description="BetweenLines - AI-powered chat analysis and reply suggestions",
     version="0.1.0",
 )
 
@@ -324,7 +324,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 async def root():
-    return {"message": "Chat Coach API is running", "version": "0.1.0"}
+    return {"message": "BetweenLines API is running", "version": "0.1.0"}
 
 
 @app.get("/health")
@@ -516,7 +516,7 @@ app.middleware("http")(rate_limit_middleware)
 
 ```python
 """
-Chat Coach API 测试脚本
+BetweenLines API 测试脚本
 使用方法：python tests/test_api.py
 前提：后端服务已启动在 http://localhost:8000
 """
@@ -584,7 +584,7 @@ async def test_feedback():
 
 async def main():
     print("=" * 50)
-    print("Chat Coach API Test Suite")
+    print("BetweenLines API Test Suite")
     print("=" * 50)
     
     tests = [

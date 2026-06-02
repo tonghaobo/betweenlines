@@ -1,12 +1,14 @@
 import sqlite3
+import uuid
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "chatcoach.db"
+DB_PATH = Path(__file__).parent.parent.parent / "data" / "betweenlines.db"
 
 
 @contextmanager
@@ -29,31 +31,196 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 helpful BOOLEAN NOT NULL,
                 analysis_id TEXT,
+                reason TEXT DEFAULT '',
+                comment TEXT DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+
+        # 为旧表添加缺失列（兼容已有数据库）
+        try:
+            cursor.execute("ALTER TABLE feedback ADD COLUMN reason TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE feedback ADD COLUMN comment TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS analysis_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_length INTEGER NOT NULL,
                 chat_status TEXT,
+                relationship_type TEXT DEFAULT 'romantic',
                 request_duration_ms REAL,
                 error TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        try:
+            cursor.execute("ALTER TABLE analysis_log ADD COLUMN relationship_type TEXT DEFAULT 'romantic'")
+        except sqlite3.OperationalError:
+            pass
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS outcome (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                analysis_id TEXT,
+                reply_used TEXT,
+                outcome TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        
+        # Events table for analytics
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id TEXT PRIMARY KEY,
+                anonymous_user_id TEXT NOT NULL,
+                event_name TEXT NOT NULL,
+                properties TEXT,
+                session_id TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        
+        # Indexes for analytics queries
+        try:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_events_user_created_at
+                ON events(anonymous_user_id, created_at)
+            """)
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_events_event_name
+                ON events(event_name)
+            """)
+        except sqlite3.OperationalError:
+            pass
+        
+        # Share rewards table (V1.2)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS share_rewards (
+                id TEXT PRIMARY KEY,
+                anonymous_user_id TEXT NOT NULL,
+                reward_date TEXT NOT NULL,
+                reward_type TEXT NOT NULL,
+                reward_count INTEGER DEFAULT 1,
+                share_hash TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        try:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_share_rewards_user_date
+                ON share_rewards(anonymous_user_id, reward_date)
+            """)
+        except sqlite3.OperationalError:
+            pass
         
         conn.commit()
     logger.info("Database initialized successfully")
 
 
-def save_feedback(helpful: bool, analysis_id: str | None = None):
+def _ensure_daily_usage_table():
+    """Ensure daily_usage table exists (called lazily)."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_usage (
+                user_key TEXT NOT NULL,
+                usage_date TEXT NOT NULL,
+                analysis_count INTEGER NOT NULL DEFAULT 0,
+                screenshot_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_key, usage_date)
+            )
+        """)
+        # Migrate: add usage_records table (anonymous_user_id based)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usage_records (
+                anonymous_user_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                text_analysis_count INTEGER NOT NULL DEFAULT 0,
+                image_analysis_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (anonymous_user_id, date)
+            )
+        """)
+        conn.commit()
+
+
+_ensure_daily_usage_table()
+
+
+def get_daily_usage(anonymous_user_id: str) -> dict:
+    """Get today's usage counts for a user. Returns {analysis_count, screenshot_count}."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Try usage_records table first (new system)
+        row = cursor.execute(
+            "SELECT text_analysis_count, image_analysis_count FROM usage_records WHERE anonymous_user_id = ? AND date = ?",
+            (anonymous_user_id, today),
+        ).fetchone()
+
+    if row:
+        return {"analysis_count": row[0], "screenshot_count": row[1]}
+    return {"analysis_count": 0, "screenshot_count": 0}
+
+
+def increment_daily_usage(anonymous_user_id: str, usage_type: str) -> int:
+    """Increment today's usage count. usage_type: 'analysis' or 'screenshot'. Returns new count."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    column = "text_analysis_count" if usage_type == "analysis" else "image_analysis_count"
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Upsert: insert if not exists, otherwise increment
+        cursor.execute(
+            f"INSERT INTO usage_records (anonymous_user_id, date, {column}) VALUES (?, ?, 1) "
+            f"ON CONFLICT(anonymous_user_id, date) DO UPDATE SET {column} = {column} + 1",
+            (anonymous_user_id, today),
+        )
+        conn.commit()
+
+        row = cursor.execute(
+            f"SELECT {column} FROM usage_records WHERE anonymous_user_id = ? AND date = ?",
+            (anonymous_user_id, today),
+        ).fetchone()
+
+    return row[0] if row else 1
+
+
+def decrement_daily_usage(anonymous_user_id: str, usage_type: str) -> int:
+    """Decrement today's usage count (undo on failure). usage_type: 'analysis' or 'screenshot'. Returns new count."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    column = "text_analysis_count" if usage_type == "analysis" else "image_analysis_count"
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO feedback (helpful, analysis_id) VALUES (?, ?)",
-            (helpful, analysis_id),
+            f"UPDATE usage_records SET {column} = MAX(0, {column} - 1) "
+            f"WHERE anonymous_user_id = ? AND date = ?",
+            (anonymous_user_id, today),
+        )
+        conn.commit()
+
+        row = cursor.execute(
+            f"SELECT {column} FROM usage_records WHERE anonymous_user_id = ? AND date = ?",
+            (anonymous_user_id, today),
+        ).fetchone()
+
+    return row[0] if row else 0
+
+
+def save_feedback(helpful: bool, analysis_id: str | None = None, reason: str = "", comment: str = ""):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO feedback (helpful, analysis_id, reason, comment) VALUES (?, ?, ?, ?)",
+            (helpful, analysis_id, reason, comment),
         )
         conn.commit()
     logger.info(f"Feedback saved: helpful={helpful}")
@@ -64,12 +231,13 @@ def save_analysis_log(
     chat_status: str | None,
     duration_ms: float,
     error: str | None = None,
+    relationship_type: str | None = None,
 ):
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO analysis_log (chat_length, chat_status, request_duration_ms, error) VALUES (?, ?, ?, ?)",
-            (chat_length, chat_status, duration_ms, error),
+            "INSERT INTO analysis_log (chat_length, chat_status, relationship_type, request_duration_ms, error) VALUES (?, ?, ?, ?, ?)",
+            (chat_length, chat_status, relationship_type, duration_ms, error),
         )
         conn.commit()
 
@@ -86,3 +254,210 @@ def get_feedback_stats():
         "helpful": helpful,
         "helpful_rate": round(helpful / total * 100, 1) if total > 0 else 0,
     }
+
+
+def save_outcome(analysis_id: str | None = None, reply_used: str = "", outcome: str = ""):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO outcome (analysis_id, reply_used, outcome) VALUES (?, ?, ?)",
+            (analysis_id, reply_used, outcome),
+        )
+        conn.commit()
+    logger.info(f"Outcome saved: reply_used={reply_used}, outcome={outcome}")
+
+
+def get_outcome_stats():
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        total = cursor.execute("SELECT COUNT(*) FROM outcome").fetchone()[0]
+        reply_used_count = cursor.execute(
+            "SELECT COUNT(*) FROM outcome WHERE reply_used IN ('sent', 'modified')"
+        ).fetchone()[0]
+        positive_count = cursor.execute(
+            "SELECT COUNT(*) FROM outcome WHERE outcome = 'more_positive'"
+        ).fetchone()[0]
+
+    return {
+        "total": total,
+        "reply_adoption_rate": round(reply_used_count / total * 100, 1) if total > 0 else 0,
+        "positive_outcome_rate": round(positive_count / total * 100, 1) if total > 0 else 0,
+    }
+
+
+# ── Analytics: event tracking & metrics ──
+
+VALID_EVENTS = {
+    "page_view", "analysis_created", "analysis_success",
+    "reply_generated", "reply_used", "feedback_given", "return_visit",
+    "relationship_selected", "usage_limit_hit", "image_analysis_started",
+    "share_clicked", "share_image_generated", "share_succeeded", "share_cancelled",
+    "share_reward_granted", "share_reward_limit_hit",
+}
+
+
+def save_event(anonymous_user_id: str, event_name: str, properties: str | None = None, session_id: str | None = None):
+    event_id = str(uuid.uuid4())
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO events (id, anonymous_user_id, event_name, properties, session_id) VALUES (?, ?, ?, ?, ?)",
+            (event_id, anonymous_user_id, event_name, properties, session_id),
+        )
+        conn.commit()
+
+
+def get_metrics() -> dict:
+    """Compute all V1 metrics from the events table."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+
+        # DAU: unique users with any event today
+        dau = cursor.execute(
+            "SELECT COUNT(DISTINCT anonymous_user_id) FROM events WHERE date(created_at) = ?",
+            (today,),
+        ).fetchone()[0]
+
+        # D1 retention: users active yesterday who were also active on their first day
+        # Logic: users whose first event was on a day X, and who also have events on day X+1
+        d1_numerator = cursor.execute("""
+            SELECT COUNT(DISTINCT e1.anonymous_user_id)
+            FROM events e1
+            JOIN events e2 ON e1.anonymous_user_id = e2.anonymous_user_id
+            WHERE date(e1.created_at) = ?
+              AND date(e2.created_at) = date(e1.created_at, '+1 day')
+              AND e1.anonymous_user_id IN (
+                  SELECT anonymous_user_id FROM events
+                  GROUP BY anonymous_user_id
+                  HAVING date(MIN(created_at)) = date(e1.created_at)
+              )
+        """, (yesterday,)).fetchone()[0]
+
+        d1_denominator_row = cursor.execute("""
+            SELECT COUNT(DISTINCT anonymous_user_id)
+            FROM events
+            GROUP BY anonymous_user_id
+            HAVING date(MIN(created_at)) = ?
+        """, (yesterday,)).fetchone()
+        d1_denominator = d1_denominator_row[0] if d1_denominator_row else 0
+
+        d1_retention = round(d1_numerator / d1_denominator * 100, 1) if d1_denominator > 0 else 0
+
+        # D7 retention
+        d7_numerator = cursor.execute("""
+            SELECT COUNT(DISTINCT e1.anonymous_user_id)
+            FROM events e1
+            JOIN events e2 ON e1.anonymous_user_id = e2.anonymous_user_id
+            WHERE date(e1.created_at) = ?
+              AND date(e2.created_at) = date(e1.created_at, '+7 days')
+              AND e1.anonymous_user_id IN (
+                  SELECT anonymous_user_id FROM events
+                  GROUP BY anonymous_user_id
+                  HAVING date(MIN(created_at)) = date(e1.created_at)
+              )
+        """, (week_ago,)).fetchone()[0]
+
+        d7_denominator_row = cursor.execute("""
+            SELECT COUNT(DISTINCT anonymous_user_id)
+            FROM events
+            GROUP BY anonymous_user_id
+            HAVING date(MIN(created_at)) = ?
+        """, (week_ago,)).fetchone()
+        d7_denominator = d7_denominator_row[0] if d7_denominator_row else 0
+
+        d7_retention = round(d7_numerator / d7_denominator * 100, 1) if d7_denominator > 0 else 0
+
+        # Total analyses (analysis_success events)
+        total_analyses = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'analysis_success'"
+        ).fetchone()[0]
+
+        # Helpful rate: feedback_given events where properties contains "helpful": true
+        feedback_total = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'feedback_given'"
+        ).fetchone()[0]
+        feedback_helpful = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'feedback_given' AND properties LIKE '%helpful\": true%'"
+        ).fetchone()[0]
+        helpful_rate = round(feedback_helpful / feedback_total * 100, 1) if feedback_total > 0 else 0
+
+        # Reply adoption rate: reply_used / analysis_success
+        reply_used_count = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'reply_used'"
+        ).fetchone()[0]
+        reply_adoption_rate = round(reply_used_count / total_analyses * 100, 1) if total_analyses > 0 else 0
+
+        # Avg analyses per user
+        analysis_per_user_row = cursor.execute("""
+            SELECT AVG(cnt) FROM (
+                SELECT COUNT(*) as cnt FROM events
+                WHERE event_name = 'analysis_success'
+                GROUP BY anonymous_user_id
+            )
+        """).fetchone()[0]
+        analysis_count_per_user = round(analysis_per_user_row, 1) if analysis_per_user_row else 0
+
+        # Avg analysis duration (ms from client-reported properties)
+        duration_row = cursor.execute("""
+            SELECT AVG(CAST(json_extract(properties, '$.duration_ms') AS REAL))
+            FROM events
+            WHERE event_name = 'analysis_success'
+              AND properties LIKE '%duration_ms%'
+              AND CAST(json_extract(properties, '$.duration_ms') AS REAL) > 0
+        """).fetchone()[0]
+        avg_analysis_duration_ms = round(duration_row) if duration_row else 0
+
+        # Share conversion rate: share_succeeded / share_clicked
+        share_clicked_count = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'share_clicked'"
+        ).fetchone()[0]
+        share_succeeded_count = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'share_succeeded'"
+        ).fetchone()[0]
+        share_conversion_rate = round(share_succeeded_count / share_clicked_count * 100, 1) if share_clicked_count > 0 else 0
+
+    return {
+        "dau": dau,
+        "d1_retention": d1_retention,
+        "d7_retention": d7_retention,
+        "total_analyses": total_analyses,
+        "helpful_rate": helpful_rate,
+        "reply_adoption_rate": reply_adoption_rate,
+        "analysis_count_per_user": analysis_count_per_user,
+        "avg_analysis_duration_ms": avg_analysis_duration_ms,
+        "share_conversion_rate": share_conversion_rate,
+        "share_clicked_count": share_clicked_count,
+        "share_succeeded_count": share_succeeded_count,
+    }
+
+
+# ── Share Rewards (V1.2) ──
+
+def get_share_reward_count(anonymous_user_id: str, reward_date: str) -> int:
+    """Get today's share reward count for a user."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        row = cursor.execute(
+            "SELECT COALESCE(SUM(reward_count), 0) FROM share_rewards WHERE anonymous_user_id = ? AND reward_date = ?",
+            (anonymous_user_id, reward_date),
+        ).fetchone()
+    return row[0] if row else 0
+
+
+def save_share_reward(anonymous_user_id: str, reward_type: str, share_hash: str) -> str:
+    """Save a share reward record. Returns the reward ID."""
+    reward_id = str(uuid.uuid4())
+    reward_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO share_rewards (id, anonymous_user_id, reward_date, reward_type, reward_count, share_hash) VALUES (?, ?, ?, ?, 1, ?)",
+            (reward_id, anonymous_user_id, reward_date, reward_type, share_hash),
+        )
+        conn.commit()
+    logger.info(f"Share reward granted: user={anonymous_user_id}, type={reward_type}")
+    return reward_id

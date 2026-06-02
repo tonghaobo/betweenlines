@@ -6,7 +6,7 @@
 - **语言**：Python 3.11
 - **数据验证**：Pydantic v2
 - **AI SDK**：OpenAI Python SDK（兼容豆包 API）
-- **存储**：SQLite（aiosqlite 异步，但当前用同步 sqlite3）
+- **存储**：SQLite（同步 sqlite3）
 - **部署**：Railway（Procfile + runtime.txt）
 
 ---
@@ -24,7 +24,7 @@ backend/
 │   ├── core/
 │   │   └── config.py      # 配置管理（pydantic-settings）
 │   ├── routers/
-│   │   └── chat.py        # API 路由（4 个端点）
+│   │   └── chat.py        # API 路由（6 个端点）
 │   ├── services/
 │   │   ├── doubao_service.py   # AI 服务（文本+视觉）
 │   │   ├── chat_cleaner.py     # 输入清洗+安全检测
@@ -35,7 +35,7 @@ backend/
 │       ├── rate_limit.py  # IP 限流
 │       └── security.py    # 安全头
 └── tests/
-    ├── test_api.py        # API 集成测试（20 个用例）
+    ├── test_api.py        # API 集成测试
     ├── test_prompt.py     # Prompt 效果测试
     └── test_production.py # 生产环境验证
 ```
@@ -49,8 +49,9 @@ backend/
 | `GET` | `/health` | 健康检查 | 无 |
 | `POST` | `/api/v1/analyze` | 聊天分析 | 20次/分钟 |
 | `POST` | `/api/v1/analyze-screenshot` | 截图OCR | 无 |
-| `POST` | `/api/v1/feedback` | 用户反馈 | 无 |
-| `GET` | `/api/v1/stats` | 反馈统计 | 无 |
+| `POST` | `/api/v1/feedback` | 用户反馈（含原因+评论） | 无 |
+| `POST` | `/api/v1/outcome` | 结果追踪 | 无 |
+| `GET` | `/api/v1/stats` | 反馈+结果统计 | 无 |
 
 ---
 
@@ -136,19 +137,40 @@ CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     helpful BOOLEAN NOT NULL,
     analysis_id TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    reason TEXT DEFAULT '',       -- 反馈原因（逗号分隔）
+    comment TEXT DEFAULT '',      -- 用户补充文字
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 结果追踪表
+CREATE TABLE IF NOT EXISTS outcome (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    analysis_id TEXT,
+    reply_used TEXT,              -- sent / not_sent / modified
+    outcome TEXT,                 -- more_positive / about_same / colder / no_reply / prefer_not
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- 分析日志表
 CREATE TABLE IF NOT EXISTS analysis_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chat_length INTEGER,
+    chat_length INTEGER NOT NULL,
     chat_status TEXT,
-    elapsed_seconds REAL,
+    request_duration_ms REAL,
     error TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
+
+**存储函数**：
+
+| 函数 | 作用 |
+|------|------|
+| `save_feedback(helpful, analysis_id, reason, comment)` | 保存反馈 |
+| `get_feedback_stats()` | 返回 total / helpful / helpful_rate |
+| `save_outcome(analysis_id, reply_used, outcome)` | 保存结果追踪 |
+| `get_outcome_stats()` | 返回 reply_adoption_rate / positive_outcome_rate |
+| `save_analysis_log(chat_length, chat_status, duration_ms, error)` | 保存分析日志 |
 
 ---
 
@@ -223,11 +245,30 @@ class ChatAnalysisResponse(BaseModel):
     timing_advice: str      # 回复时机建议
 ```
 
+### FeedbackRequest
+
+```python
+class FeedbackRequest(BaseModel):
+    analysis_id: Optional[str]   # 分析记录ID
+    helpful: bool                # 是否有帮助
+    reason: list[str]            # 反馈原因
+    comment: str                 # 补充文字
+```
+
+### OutcomeRequest
+
+```python
+class OutcomeRequest(BaseModel):
+    analysis_id: Optional[str]   # 分析记录ID
+    reply_used: str              # sent / not_sent / modified
+    outcome: str                 # more_positive / about_same / colder / no_reply / prefer_not
+```
+
 ---
 
 ## 测试
 
-### test_api.py（20 个测试用例）
+### test_api.py
 
 - 12 个聊天场景：积极互动、普通互动、冷淡、礼貌、高风险、初次搭话、对方主导、久未联系、单方面输出、微信风格、中英混合、深夜对话
 - 5 个边界条件：空输入、超长、违规内容、纯空白、单人聊天

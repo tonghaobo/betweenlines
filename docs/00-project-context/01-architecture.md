@@ -39,8 +39,9 @@
 │  ├── GET  /health          → 健康检查                           │
 │  ├── POST /api/v1/analyze  → 聊天分析                           │
 │  ├── POST /api/v1/analyze-screenshot → 截图OCR                  │
-│  ├── POST /api/v1/feedback → 用户反馈                           │
-│  └── GET  /api/v1/stats    → 反馈统计                           │
+│  ├── POST /api/v1/feedback → 用户反馈（含原因+评论）            │
+│  ├── POST /api/v1/outcome  → 结果追踪                           │
+│  └── GET  /api/v1/stats    → 反馈+结果统计                      │
 │                                                                  │
 │  routers/chat.py                                               │
 │  ├── 输入验证 (长度/格式/违规词)                                 │
@@ -68,7 +69,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                    SQLite (Railway Volume)                       │
 │                                                                  │
-│  feedback 表        → 用户反馈 (helpful + analysis_id)           │
+│  feedback 表        → 用户反馈 (helpful + reason + comment)     │
+│  outcome 表         → 结果追踪 (reply_used + outcome)           │
 │  analysis_log 表    → 分析日志 (长度/状态/耗时/错误)             │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -76,6 +78,8 @@
 ---
 
 ## 数据流
+
+### 主流程：聊天分析
 
 ```
 用户输入聊天记录
@@ -112,8 +116,36 @@
     ▼
 [前端] page.tsx 根据状态渲染
     ├── isLoading  → LoadingOverlay
-    ├── result     → ResultPage + FeedbackSection
+    ├── result     → ResultPage + FeedbackSection + ReplyAdoptionCard
     └── error      → 错误提示
+```
+
+### 反馈闭环流程
+
+```
+[结果页] FeedbackSection: 👍/👎 + 原因选择 + 评论
+    │
+    ▼
+[前端] api.ts: submitFeedback(helpful, analysisId, reason, comment)
+    │
+    ▼
+[后端] POST /api/v1/feedback → feedback 表
+
+[结果页] ReplyAdoptionCard: 发了/没发/改了一下再发
+    │
+    ▼
+[前端] api.ts: submitOutcome(replyUsed)
+    │
+    ▼
+[后端] POST /api/v1/outcome → outcome 表
+
+[首页 24h后] FollowUpReminder: 回复更积极/差不多/更冷淡/没回复/不想说
+    │
+    ▼
+[前端] api.ts: submitOutcome("sent", outcome)
+    │
+    ▼
+[后端] POST /api/v1/outcome → outcome 表
 ```
 
 ---
@@ -149,3 +181,9 @@
 - Next.js rewrite 在 dev 模式做代理，避免 CORS 问题
 - 生产环境前端直连后端，减少中间层
 - 后端独立部署，架构更清晰
+
+### 6. 为什么反馈系统分 Phase 渐进实现？
+
+- Phase 1-2 先建立数据闭环（反馈采集 + 结果追踪）
+- Phase 3-5 基于真实数据再优化（标签化 + Prompt 优化 + 相似案例）
+- 避免在数据不足时过度设计

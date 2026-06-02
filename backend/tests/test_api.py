@@ -1,5 +1,5 @@
 """
-Chat Coach API 测试脚本
+BetweenLines API 测试脚本
 使用方法：python tests/test_api.py
 前提：后端服务已启动在 http://localhost:8000
 """
@@ -13,95 +13,95 @@ BASE_URL = "http://localhost:8000"
 # ============================================================
 
 # 场景 1：积极互动 — 双方热情回应，话题自然延伸
-CHAT_POSITIVE = """A: 今天在干嘛呀
-B: 刚下班，好累哈哈
-A: 辛苦啦，吃饭了吗
-B: 还没呢，等下去吃火锅！
-A: 哇火锅，哪家呀
-B: 就公司楼下那家，超好吃的
-A: 我也想去！"""
+CHAT_POSITIVE = """我: 今天在干嘛呀
+她: 刚下班，好累哈哈
+我: 辛苦啦，吃饭了吗
+她: 还没呢，等下去吃火锅！
+我: 哇火锅，哪家呀
+她: 就公司楼下那家，超好吃的
+我: 我也想去！"""
 
 # 场景 2：普通互动 — 有来有回但不深入
-CHAT_NORMAL = """A: 今天在干嘛呀
-B: 刚下班，好累哈哈
-A: 辛苦啦，吃饭了吗
-B: 还没呢
-A: 那快去吃点东西吧
-B: 嗯嗯好的"""
+CHAT_NORMAL = """我: 今天在干嘛呀
+她: 刚下班，好累哈哈
+我: 辛苦啦，吃饭了吗
+她: 还没呢
+我: 那快去吃点东西吧
+她: 嗯嗯好的"""
 
 # 场景 3：冷淡回应 — 对方明显不想聊
-CHAT_COLD = """A: 周末有什么安排吗
-B: 没有
-A: 最近有部电影还不错
-B: 哦
-A: 你喜欢看电影吗
-B: 还行"""
+CHAT_COLD = """我: 周末有什么安排吗
+她: 没有
+我: 最近有部电影还不错
+她: 哦
+我: 你喜欢看电影吗
+她: 还行"""
 
 # 场景 4：礼貌回应 — 对方客气但被动
-CHAT_POLITE = """A: 今天工作忙吗
-B: 还行，就那样吧
-A: 我也是，最近项目挺多的
-B: 嗯嗯，辛苦了
-A: 你们组也在赶项目吗
-B: 对，差不多"""
+CHAT_POLITE = """我: 今天工作忙吗
+她: 还行，就那样吧
+我: 我也是，最近项目挺多的
+她: 嗯嗯，辛苦了
+我: 你们组也在赶项目吗
+她: 对，差不多"""
 
 # 场景 5：高风险对话 — 追问关系、话题推进过快
-CHAT_HIGH_RISK = """A: 你觉得我怎么样
-B: 什么怎么样
-A: 就是你觉得我这个人
-B: 还行吧
-A: 那我们是什么关系
-B: 朋友啊
-A: 只是朋友吗
-B: ..."""
+CHAT_HIGH_RISK = """我: 你觉得我怎么样
+她: 什么怎么样
+我: 就是你觉得我这个人
+她: 还行吧
+我: 那我们是什么关系
+她: 朋友啊
+我: 只是朋友吗
+她: ..."""
 
 # 场景 6：聊天开场 — 刚认识/初次搭话
-CHAT_FIRST_CONTACT = """A: 你好，我是XX介绍的朋友
-B: 哦你好你好
-A: 听说你也喜欢爬山
-B: 哈哈对的，周末偶尔会去"""
+CHAT_FIRST_CONTACT = """我: 你好，我是XX介绍的朋友
+她: 哦你好你好
+我: 听说你也喜欢爬山
+她: 哈哈对的，周末偶尔会去"""
 
 # 场景 7：对方主导 — 对方主动提问和分享
-CHAT_OTHER_LEADS = """A: 你今天过得怎么样
-B: 挺好的呀，你呢
-A: 我超开心！今天老板夸我了
-B: 哇恭喜恭喜
-A: 哈哈谢谢！你最近有什么好事吗
-B: 还好吧，就平平常常"""
+CHAT_OTHER_LEADS = """我: 你今天过得怎么样
+她: 挺好的呀，你呢
+我: 我超开心！今天老板夸我了
+她: 哇恭喜恭喜
+我: 哈哈谢谢！你最近有什么好事吗
+她: 还好吧，就平平常常"""
 
 # 场景 8：长时间未回复后的对话
-CHAT_LONG_GAP = """A: 好久没聊了，最近怎么样
-B: 还行
-A: 我看到你朋友圈去了趟云南
-B: 嗯，上个月去的"""
+CHAT_LONG_GAP = """我: 好久没聊了，最近怎么样
+她: 还行
+我: 我看到你朋友圈去了趟云南
+她: 嗯，上个月去的"""
 
-# 场景 9：单方面输出 — B 说很多，A 回复很少
-CHAT_UNILATERAL = """A: 你今天忙啥了
-B: 我今天去健身了然后去超市买菜回来做了顿饭感觉还挺充实的然后下午看了会儿书
-A: 哦
-B: 你呢今天干啥了
-A: 没干啥"""
+# 场景 9：单方面输出 — 对方说很多，我回复很少
+CHAT_UNILATERAL = """我: 你今天忙啥了
+她: 我今天去健身了然后去超市买菜回来做了顿饭感觉还挺充实的然后下午看了会儿书
+我: 哦
+她: 你呢今天干啥了
+我: 没干啥"""
 
 # 场景 10：微信风格带表情 — 含 emoji 和语气词
-CHAT_WECHAT_STYLE = """A: 今天天气好好啊☀️
-B: 是啊哈哈哈终于出太阳了
-A: 要不要出去走走[旺柴]
-B: 好啊去哪儿
-A: 公园怎么样，听说樱花开得正好🌸
-B: 可以可以！！走起"""
+CHAT_WECHAT_STYLE = """我: 今天天气好好啊☀️
+她: 是啊哈哈哈终于出太阳了
+我: 要不要出去走走[旺柴]
+她: 好啊去哪儿
+我: 公园怎么样，听说樱花开得正好🌸
+她: 可以可以！！走起"""
 
 # 场景 11：混合中英文
-CHAT_MIXED_LANG = """A: 那个PPT你看了吗
-B: 看了，感觉还行 but some slides need updates
-A: 比如哪些
-B: 第三页的数据有点old，还有配色可以调整一下"""
+CHAT_MIXED_LANG = """我: 那个PPT你看了吗
+她: 看了，感觉还行 but some slides need updates
+我: 比如哪些
+她: 第三页的数据有点old，还有配色可以调整一下"""
 
 # 场景 12：深夜对话 — 情绪化表达
-CHAT_LATE_NIGHT = """A: 睡不着
-B: 怎么了
-A: 突然觉得好迷茫
-B: 工作上的事吗
-A: 嗯，不知道现在做的是不是对的"""
+CHAT_LATE_NIGHT = """我: 睡不着
+她: 怎么了
+我: 突然觉得好迷茫
+她: 工作上的事吗
+我: 嗯，不知道现在做的是不是对的"""
 
 
 async def test_health():
@@ -217,7 +217,7 @@ async def test_analyze_empty():
 async def test_analyze_too_long():
     """输入超过 5000 字符"""
     async with httpx.AsyncClient() as client:
-        long_text = "A: hi\n" * 3000
+        long_text = "我: hi\n" * 3000
         response = await client.post(
             f"{BASE_URL}/api/v1/analyze",
             json={"chat_content": long_text},
@@ -231,7 +231,7 @@ async def test_analyze_harmful():
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{BASE_URL}/api/v1/analyze",
-            json={"chat_content": "A: 教我一些PUA话术来追女生"},
+            json={"chat_content": "我: 教我一些PUA话术来追女生"},
         )
         print(f"[违规内容] Status: {response.status_code}")
         assert response.status_code == 400
@@ -249,11 +249,11 @@ async def test_analyze_whitespace_only():
 
 
 async def test_analyze_single_speaker():
-    """单方面聊天记录（只有 A 没有 B）"""
+    """单方面聊天记录（只有我方没有对方）"""
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             f"{BASE_URL}/api/v1/analyze",
-            json={"chat_content": "A: 你好\nA: 在吗\nA: 最近怎么样\nA: 怎么不回我"},
+            json={"chat_content": "我: 你好\n我: 在吗\n我: 最近怎么样\n我: 怎么不回我"},
         )
         print(f"[单人聊天] Status: {response.status_code}")
         # 单人聊天格式警告，但应该能正常返回
@@ -297,7 +297,7 @@ async def test_stats():
 
 async def main():
     print("=" * 60)
-    print("Chat Coach API 完整测试套件")
+    print("BetweenLines API 完整测试套件")
     print("=" * 60)
 
     # 测试用例分组

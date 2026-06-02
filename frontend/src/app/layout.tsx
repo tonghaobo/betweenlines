@@ -3,8 +3,8 @@ import "./globals.css";
 import { I18nLayout } from "./I18nLayout";
 
 export const metadata: Metadata = {
-  title: "Chat Coach - Understand the vibe before you reply",
-  description: "Paste your chat and get instant insight.",
+  title: "BetweenLines - Understand the vibe before you reply",
+  description: "Understand the vibe before you reply. AI-powered relationship communication coaching.",
 };
 
 export default function RootLayout({

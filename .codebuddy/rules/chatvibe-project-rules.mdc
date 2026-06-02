@@ -1,0 +1,383 @@
+---
+description: 
+alwaysApply: true
+enabled: true
+updatedAt: 2026-06-01T11:33:55.760Z
+provider: 
+---
+
+# ChatVibe 项目开发规范
+
+> 用途：AI Coding Agent 强约束规则
+> 目标：防止混乱代码、过度设计、功能膨胀、架构漂移
+
+---
+
+# 0. 核心原则（最高优先级，覆盖一切）
+
+## P0：可运行优先
+
+- 代码必须可运行，不允许伪代码或"理论设计"替代实现
+
+## P0：最小功能原则
+
+- 只实现当前任务要求，不允许提前开发未来功能，不允许"顺手优化"
+
+## P0：禁止复杂化
+
+- 禁止过度抽象、设计模式炫技、多层无意义封装
+
+## P0：需求不明先问
+
+- 需求不明确时必须先问，不允许猜测实现
+
+---
+
+# 1. 任务执行规范
+
+每次任务严格遵循：**Think small → Build small → Verify fast**
+
+如需求明确，按以下结构输出：
+
+- **Goal**：当前任务目标
+- **Plan**：简要步骤（3~6 条）
+- **Files**：将修改/创建的文件清单
+- **Implementation**：完整代码
+- **Run**：如何运行
+- **Verify**：如何验证
+
+---
+
+# 2. 单任务规则（强制执行）
+
+## 禁止
+
+- 同时开发多个 feature
+- 自行扩展需求
+- 添加未要求页面/API
+- 提前做 V2/V3 功能（反馈系统按 Phase 渐进，不跳阶段）
+- 重构整个项目结构
+- 删除已有模块（除非用户明确要求）
+
+## 必须
+
+- 只解决当前 task
+- 发现问题 → 记录，不修改范围
+- 需新增功能 → 必须先询问用户
+
+---
+
+# 3. 技术栈锁定（禁止替换，除非用户明确要求）
+
+| 层级 | 技术 | 备注 |
+|------|------|------|
+| 前端 | Next.js 16 (App Router) + React 19 + TypeScript | - |
+| 样式 | Tailwind CSS v4 | 不引入 CSS-in-JS |
+| 后端 | FastAPI + Python 3.11 + Pydantic v2 | - |
+| AI | 豆包 API（火山引擎 ARK，OpenAI 兼容协议） | - |
+| 存储 | SQLite（同步 sqlite3） | V1 不引入 PG/Redis/向量库 |
+| 部署 | 前端 Vercel / 后端 Railway | - |
+
+## 额外禁止
+
+- 不使用 next-intl 等重量级 i18n 库（当前 Context 方案足够）
+- 不使用 Axios（原生 fetch + AbortController 足够）
+- 不引入 Zustand/Redux 等状态管理库（用 React Context + 自定义 Hook）
+- 不使用 shadcn/ui（项目未引入，使用 Tailwind 手写组件）
+
+---
+
+# 4. 目录结构约束（按实际代码，禁止随意新增目录）
+
+## Frontend
+
+```
+frontend/src/
+├── app/              # Next.js App Router 页面
+├── components/       # UI 组件（按功能分目录）
+│   ├── hero/         # 首页 Hero
+│   ├── chat-input/   # 输入框
+│   ├── result/       # 分析结果
+│   ├── feedback/     # 反馈与追踪
+│   └── ui/           # 通用 UI 组件
+├── lib/              # 工具库（api.ts, hooks, cache）
+├── contexts/         # React Context
+└── locales/          # 国际化（en.ts, zh.ts, types.ts）
+```
+
+## Backend
+
+```
+backend/app/
+├── main.py           # FastAPI 入口 + 中间件注册
+├── core/config.py    # 配置管理
+├── routers/          # API 路由（按领域分文件）
+├── services/         # 业务逻辑（AI、清洗、存储）
+├── schemas/          # Pydantic 请求/响应模型
+├── middleware/       # 限流、安全头
+└── models/           # （预留，当前未使用）
+```
+
+## 规则
+
+- 组件按功能分目录，不按类型
+- 通用 UI 组件放 `components/ui/`
+- 业务逻辑放 `lib/`（API 调用、自定义 Hook、缓存）
+- 每个组件一个文件，文件名 PascalCase
+- 数据库操作全部在 `services/storage.py`，路由层不直接写 SQL
+
+---
+
+# 5. 产品红线（任何改动不得违反）
+
+| 规则 | 说明 |
+|------|------|
+| ❌ 不做绝对判断 | 不说"她喜欢你"等确定性结论 |
+| ❌ 不代替用户聊天 | 不自动发送消息 |
+| ❌ 不制造焦虑 | 禁止 PUA 风格，不恐吓用户 |
+| ❌ 不训练模型 | V1 直接调用 API，不使用用户数据训练 |
+| ✅ 聊天记录不存储 | 仅内存处理，不落盘 |
+| ✅ 输出自然可发送 | 回复建议可直接复制使用 |
+
+---
+
+# 6. UI 约束（强制）
+
+## 风格
+
+- 极简、SaaS 风格、类 Linear / Notion
+- 移动端优先、响应式、清晰间距
+
+## 禁止
+
+- 花哨动画
+- 恋爱风 UI
+- 多余装饰
+- 非必要渐变
+- 内联 style 或独立 CSS 文件（统一用 Tailwind）
+
+---
+
+# 7. 前端编码规范
+
+## 组件
+
+- 页面级组件使用 `"use client"` 指令
+- 组件 props 必须定义 TypeScript 接口
+- 复杂状态管理使用自定义 Hook（参考 `useChatAnalysis`），不直接写 useState 链
+
+## 国际化
+
+- **所有用户可见文字必须走 i18n**，禁止硬编码中/英文字符串
+- `en.ts` 是类型权威（`Locale` 类型 = `typeof en`）
+- `zh.ts` 必须用 `satisfies typeof en`，保证中英文 key 完全一致
+- 新增文案：先改 `en.ts` → 再改 `zh.ts`
+- SSR 安全：首次渲染固定 `en`，客户端 `useEffect` 恢复用户选择
+
+## API 调用
+
+- 所有后端调用走 `lib/api.ts`，禁止组件中直接 fetch
+- 超时控制：`AbortController` + `fetchWithTimeout`
+- 分析类接口：自动重试（指数退避，最多 2 次）
+- 反馈/结果类接口：不重试（5s 超时）
+- 错误分类：`validation` / `timeout` / `network` / `server` / `rate_limit`
+
+---
+
+# 8. 后端编码规范
+
+## API 设计
+
+- 端点路径：`/api/v1/{resource}`，版本号必须包含
+- 请求/响应必须用 Pydantic Model，禁止用 dict
+- 新增功能顺序：Schema → Service 函数 → Router 端点
+- 路由层只做参数校验和调用 service，不含业务逻辑
+- 所有端点 try/catch，存储失败只 warn 不抛异常（不阻塞主流程）
+- 新增端点必须同时更新 `/stats` 统计接口
+
+## 数据库
+
+- SQLite，同步 `sqlite3` 模块
+- 连接管理用 `get_db_connection()` 上下文管理器
+- 新增表在 `init_db()` 中创建，加 `IF NOT EXISTS`
+- 新增列用 `ALTER TABLE ... ADD COLUMN` + `try/except OperationalError`（兼容旧库）
+- 列命名：snake_case，时间列默认 `created_at TEXT DEFAULT (datetime('now'))`
+
+## AI 调用
+
+- 使用 OpenAI SDK（兼容豆包 API），不直接 requests
+- System Prompt 必须包含：角色定义 + 分析重点 + 禁止事项 + 输出格式
+- 文本模型：`doubao-seed-1-8-251228`，温度 0.7
+- 视觉模型：`doubao-vision-pro-32k`，温度 0.3
+- AI 响应必须 JSON 解析容错（清理 Markdown 代码块标记）
+- AI 输出 JSON schema 固定：
+
+```json
+{
+  "chat_status": "",
+  "analysis": "",
+  "issues": [],
+  "risks": [],
+  "reply_suggestions": { "natural": "", "humorous": "", "mature": "" },
+  "timing_advice": ""
+}
+```
+
+- 必须可解析 JSON，不允许附加解释文本或 markdown 包裹
+- 失败时返回标准错误结构或 safe template
+
+---
+
+# 9. 数据规则
+
+## 允许存储
+
+- 反馈数据（helpful + reason + comment）
+- 结果追踪（reply_used + outcome）
+- 分析日志（长度/状态/耗时/错误）
+
+## 禁止存储
+
+- 原始聊天全文（仅内存处理，不落盘）
+- 用户隐私身份信息
+
+## 原则
+
+- 最小化存储、匿名化、可删除
+
+---
+
+# 10. 反馈系统约束
+
+## 已实现（Phase 1-2）
+
+| Phase | 功能 | 组件/端点 |
+|-------|------|-----------|
+| 1 | 👍/👎 + 原因多选 + 文本输入 | `FeedbackSection.tsx` / `POST /feedback` |
+| 2 | 回复采用率 | `ReplyAdoptionCard.tsx` / `POST /outcome` |
+| 2 | 24h 后回访 | `FollowUpReminder.tsx` / `POST /outcome` |
+
+## 待实现（按 Phase 渐进，不跳阶段）
+
+| Phase | 功能 | 前置条件 |
+|-------|------|----------|
+| 3 | 自动标签生成 + 标签数据库 | 积累足够反馈数据 |
+| 4 | 错误案例 Dashboard + Prompt 优化 SOP | Phase 3 完成 |
+| 5 | 相似案例推荐（向量检索） | V3 阶段 |
+
+## 反馈设计原则
+
+- 收集 outcome（实际结果）优先于主观感受
+- 反馈数据不用于训练模型，只用于 Prompt 优化
+- 禁止复杂问卷、多步骤弹窗、过度数据采集
+
+---
+
+# 11. 输入校验约束
+
+| 项目 | 限制 | 位置 |
+|------|------|------|
+| 聊天文本长度 | 10 ~ 5000 字符 | 前端 + 后端双重校验 |
+| 截图大小 | 最大 10MB | 前端 + 后端 |
+| 截图格式 | PNG / JPEG / WebP | 后端 |
+| 分析限流 | 20 次/分钟（按 IP） | 后端中间件 |
+| 分析超时 | 文本 30s / 截图 60s | 前端 AbortController |
+| 违规词 | PUA/把妹/泡妞等关键词 | 后端 `is_potentially_harmful()` |
+
+---
+
+# 12. 安全规范
+
+- CORS 白名单：仅 `ALLOWED_ORIGINS` 中的域名
+- 安全头：X-Frame-Options DENY、CSP、HSTS
+- 输入清洗：`clean_chat_content()` + `is_potentially_harmful()`
+- 聊天记录不持久化
+- API Key 不提交 Git（`.env` 在 `.gitignore`）
+
+---
+
+# 13. 错误处理强制规则
+
+所有系统必须包含：
+
+- try/catch
+- loading state
+- error state
+- timeout fallback
+
+**禁止页面白屏**
+
+---
+
+# 14. 代码质量规则
+
+## 必须
+
+- TypeScript 类型完整
+- 明确函数职责，可读性优先
+- 函数不超过 100 行
+
+## 禁止
+
+- magic function、未命名变量
+- 超长函数（>100 行）
+
+---
+
+# 15. 修改规则（严格）
+
+## AI 不得
+
+- 重构整个系统
+- 删除已有模块
+- 改变架构风格
+
+## AI 只能
+
+- 修改当前 task 相关文件
+
+---
+
+# 16. 文档规范
+
+## 结构
+
+```
+docs/
+├── 00-project-context/   # 项目概览 + 架构总览
+├── 01-setup/             # 本地启动指南
+├── 02-architecture/      # 反馈闭环系统设计
+├── 03-frontend/          # 前端架构详解
+├── 04-backend/           # 后端架构详解
+└── 05-troubleshooting/   # 问题排查
+```
+
+## 更新规则
+
+- 代码变更必须同步更新对应文档：
+  - 新增/修改 API → 更新 `04-backend/README.md`
+  - 新增/修改组件 → 更新 `03-frontend/README.md`
+  - 新增/修改数据库表 → 更新 `01-architecture.md` + `04-backend/README.md`
+  - 新增功能 → 更新 `00-overview.md`
+- 文档用中文，代码注释用英文
+- 不在项目根目录放散落文档，统一归入 `docs/`
+- 不提交 PDF 文档
+
+---
+
+# 17. Git 规范
+
+- `main` 为主分支
+- `.env` 绝不提交
+- 删除根目录散落需求文档，统一迁移至 `docs/`
+
+---
+
+# 18. 成功标准
+
+代码必须满足：
+
+- 可运行
+- 可部署
+- 可测试
+- 不依赖隐式逻辑

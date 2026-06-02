@@ -34,8 +34,10 @@ frontend/src/
 │   │   ├── ReplySuggestions.tsx # 回复建议网格
 │   │   ├── ReplyCard.tsx        # 单个回复卡片 (含复制)
 │   │   └── TimingAdvice.tsx     # 节奏建议
-│   ├── feedback/           # 反馈
-│   │   └── FeedbackSection.tsx
+│   ├── feedback/           # 反馈与追踪
+│   │   ├── FeedbackSection.tsx    # 👍/👎 + 原因选择 + 评论
+│   │   ├── ReplyAdoptionCard.tsx  # 回复采用率采集
+│   │   └── FollowUpReminder.tsx   # 24h 后回访浮层
 │   └── ui/                 # 通用 UI
 │       ├── LangSwitcher.tsx     # 语言切换按钮
 │       ├── LoadingOverlay.tsx   # 加载动画
@@ -69,6 +71,7 @@ frontend/src/
             │   ├── <HeroSection />
             │   ├── <ExampleChats />
             │   ├── <ChatInput />          ← 文本/截图双模式
+            │   ├── <FollowUpReminder />   ← 24h后回访浮层 (条件显示)
             │   └── 错误提示 (如有)
             ├── Loading 状态
             │   ├── <HeroSection />
@@ -82,7 +85,8 @@ frontend/src/
                 │   ├── <ReplySuggestions />
                 │   │   └── <ReplyCard /> × 3 (自然/幽默/成熟)
                 │   └── <TimingAdvice />
-                └── <FeedbackSection />
+                ├── <FeedbackSection />       ← 👍/👎 + 原因选择
+                └── <ReplyAdoptionCard />     ← 回复采用率
 ```
 
 ---
@@ -102,7 +106,7 @@ frontend/src/
    └── 验证响应格式
 6. 成功 → isLoading=false, result 更新
 7. page.tsx 切换到结果视图，自动滚动
-8. 用户可复制回复建议、提交反馈
+8. 用户可复制回复建议、提交反馈、标记采用率
 ```
 
 ### 截图 OCR 流程
@@ -116,6 +120,18 @@ frontend/src/
 4. 显示提取的文字供用户确认
 5. 用户确认 → 走分析流程
    用户取消 → 重新上传
+```
+
+### 反馈闭环流程
+
+```
+1. 结果页底部: FeedbackSection
+   ├── 点击 👍 → 弹出正反馈原因多选 (态度分析/回复建议/节奏建议/风险提醒/很真实) + 评论
+   └── 点击 👎 → 弹出负反馈原因多选 (不够准确/太尴尬/太泛/不适合/看不懂/其他) + 评论
+2. 结果页底部: ReplyAdoptionCard
+   └── 单选: 发了 / 没发 / 改了一下再发
+3. 首页 24h 后: FollowUpReminder (底部浮层)
+   └── 单选: 回复更积极 / 差不多 / 更冷淡 / 没回复 / 不想说
 ```
 
 ---
@@ -142,7 +158,7 @@ frontend/src/
 - `t`: 当前语言的翻译对象
 - `toggleLocale()`: 切换语言
 - `setLocale(key)`: 设置指定语言
-- 持久化：`localStorage("chatcoach-locale")` + 内存 fallback
+- 持久化：`localStorage("betweenlines-locale")` + 内存 fallback
 
 ---
 
@@ -161,7 +177,8 @@ frontend/src/
 |------|------|------|------|
 | 聊天分析 | `analyzeChat()` | 30s | 2次 |
 | 截图OCR | `analyzeScreenshot()` | 60s | 2次 |
-| 提交反馈 | `submitFeedback()` | 5s | 无 |
+| 提交反馈 | `submitFeedback(helpful, analysisId?, reason?, comment?)` | 5s | 无 |
+| 提交结果 | `submitOutcome(replyUsed, outcome?, analysisId?)` | 5s | 无 |
 
 **错误分类**：
 - `ApiError` 类：statusCode / isTimeout / isNetworkError

@@ -146,7 +146,7 @@ async def test_case(case: dict):
 
 async def main():
     print("=" * 60)
-    print("Chat Coach Prompt 效果测试")
+    print("BetweenLines Prompt 效果测试")
     print("=" * 60)
 
     results = []

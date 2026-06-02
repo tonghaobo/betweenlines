@@ -23,10 +23,13 @@ def validate_chat_format(text: str) -> List[str]:
     """
     warnings = []
     
-    has_speaker_pattern = bool(re.search(r"^[A-Za-z\u4e00-\u9fff]+[：:]", text, re.MULTILINE))
+    has_speaker_pattern = bool(re.search(r"^(他/她|她|他|我|she|he|me)[：:]", text, re.MULTILINE))
     
     if not has_speaker_pattern:
-        warnings.append("未检测到明显的对话格式，分析结果可能不准确。建议使用 'A: xxx' 或 '对方: xxx' 格式。")
+        # 也接受旧格式 A:/B: 以及其他常见格式
+        has_legacy_pattern = bool(re.search(r"^[A-Za-z\u4e00-\u9fff]+[：:]", text, re.MULTILINE))
+        if not has_legacy_pattern:
+            warnings.append("未检测到明显的对话格式，分析结果可能不准确。建议使用 '他/她: xxx' 和 '我: xxx' 格式。")
     
     lines = [l for l in text.split("\n") if l.strip()]
     if len(lines) < 2:

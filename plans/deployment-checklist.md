@@ -1,4 +1,4 @@
-# Chat Coach 上线 Checklist
+# BetweenLines 上线 Checklist
 
 ## 前端 (Vercel)
 - [ ] `vercel.json` 配置正确

@@ -5,6 +5,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+# 确保 .env 在任何 os.getenv 之前加载
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -16,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Chat Coach API...")
+    logger.info("Starting BetweenLines API...")
     try:
         from app.services.storage import init_db
         init_db()
@@ -26,13 +30,13 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    logger.info("Shutting down Chat Coach API...")
+    logger.info("Shutting down BetweenLines API...")
 
 
 app = FastAPI(
-    title="Chat Coach API",
-    description="Chat Coach - AI-powered chat analysis and reply suggestions",
-    version="0.1.0",
+    title="BetweenLines API",
+    description="BetweenLines - AI-powered relationship communication coaching",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -45,7 +49,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
 # Security headers middleware
@@ -70,7 +74,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def root():
     import platform
     return {
-        "message": "Chat Coach API is running",
+        "message": "BetweenLines API is running",
         "version": "0.1.0",
         "python": platform.python_version(),
     }

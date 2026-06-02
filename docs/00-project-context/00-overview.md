@@ -2,7 +2,7 @@
 
 ## 一句话定位
 
-**Chat Coach（聊天教练）**：帮用户分析聊天记录的氛围和状态，给出三种风格的回复建议，避免聊天翻车。
+**BetweenLines（字里行间）**：帮用户分析聊天记录的氛围和状态，给出三种风格的回复建议，避免聊天翻车。
 
 > "Understand the vibe before you reply."
 
@@ -15,7 +15,7 @@
 | 前端 | Next.js 16 + React 19 + TypeScript + Tailwind CSS v4 | Vercel |
 | 后端 | FastAPI + Python 3.11 + Pydantic v2 | Railway |
 | AI | 豆包 API（火山引擎 ARK，OpenAI 兼容协议） | - |
-| 存储 | SQLite（仅反馈和日志数据） | Railway Volume |
+| 存储 | SQLite（反馈、结果追踪和日志数据） | Railway Volume |
 
 ---
 
@@ -27,7 +27,9 @@
 | 回复建议 | 三种风格（自然/幽默/成熟）的回复话术 |
 | 节奏建议 | 回复时机和频率建议 |
 | 截图 OCR | 上传聊天截图 → AI 提取文字 → 分析 |
-| 反馈收集 | 用户对分析结果的 有帮助/没帮助 评价 |
+| 反馈收集 | 👍/👎 + 原因多选 + 文本输入 |
+| 回复采用率 | 采集用户是否使用了建议回复 |
+| Follow-up 回访 | 24h 后追踪聊天后续结果 |
 | 中英双语 | 完整的 i18n 支持（中/英） |
 
 ---

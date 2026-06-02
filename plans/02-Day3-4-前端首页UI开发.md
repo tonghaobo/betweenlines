@@ -1,7 +1,7 @@
 # Day 3-4：前端首页 UI 开发
 
 ## 任务概述
-完成 Chat Coach 首页的完整 UI 开发，包括 Hero 区域、聊天输入区、交互逻辑、Loading 状态和表单验证。
+完成 BetweenLines 首页的完整 UI 开发，包括 Hero 区域、聊天输入区、交互逻辑、Loading 状态和表单验证。
 
 **工作量：2 天**
 
@@ -546,7 +546,7 @@ import { MetadataRoute } from "next";
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: "https://chatcoach.app",
+      url: "https://betweenlines.ai",
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1,

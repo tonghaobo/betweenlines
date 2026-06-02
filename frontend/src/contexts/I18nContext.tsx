@@ -19,7 +19,7 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-const STORAGE_KEY = "chatcoach-locale";
+const STORAGE_KEY = "betweenlines-locale";
 
 /** 内存 fallback：当 localStorage 不可用时使用 */
 let memoryFallback: LocaleKey | null = null;

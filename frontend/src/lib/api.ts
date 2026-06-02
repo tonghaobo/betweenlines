@@ -3,6 +3,8 @@ const REQUEST_TIMEOUT = 30000;
 const SCREENSHOT_TIMEOUT = 60000; // 截图分析需要更长时间
 const MAX_RETRIES = 2;
 
+export type RelationshipType = "romantic" | "friend" | "family" | "coworker" | "other";
+
 export interface ChatAnalysisResponse {
   chat_status: string;
   analysis: string;
@@ -19,6 +21,23 @@ export interface ChatAnalysisResponse {
 export interface ScreenshotAnalysisResponse {
   extracted_text: string;
   image_preview?: string;
+}
+
+export interface UsageInfo {
+  analysis_used: number;
+  analysis_limit: number;
+  analysis_reward: number;
+  screenshot_used: number;
+  screenshot_limit: number;
+  max_chat_length: number;
+  max_screenshots_per_request: number;
+  share_reward_enabled: boolean;
+}
+
+export interface ShareRewardResponse {
+  granted: boolean;
+  bonus_count: number;
+  message: string;
 }
 
 class ApiError extends Error {
@@ -51,8 +70,10 @@ async function fetchWithTimeout(
     if (error instanceof Error && error.name === "AbortError") {
       throw new ApiError("Request timed out. Please try again.", 408, true);
     }
+    // Preserve original error message for better debugging
+    const message = error instanceof Error ? error.message : "Network error. Please check your connection.";
     throw new ApiError(
-      "Network error. Please check your connection.",
+      message,
       0,
       false,
       true,
@@ -95,8 +116,18 @@ async function retryableRequest<T>(
 
 export async function analyzeChat(
   chatContent: string,
+  relationshipType: RelationshipType = "romantic",
+  anonymousUserId: string,
+  source?: string,
 ): Promise<ChatAnalysisResponse> {
   return retryableRequest(async () => {
+    const body: Record<string, unknown> = {
+      chat_content: chatContent,
+      relationship_type: relationshipType,
+      anonymous_user_id: anonymousUserId,
+    };
+    if (source) body.source = source;
+
     const response = await fetchWithTimeout(
       `${API_BASE_URL}/api/v1/analyze`,
       {
@@ -104,7 +135,7 @@ export async function analyzeChat(
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ chat_content: chatContent }),
+        body: JSON.stringify(body),
       },
       REQUEST_TIMEOUT,
     );
@@ -130,39 +161,47 @@ export async function analyzeChat(
 }
 
 export async function analyzeScreenshot(
-  file: File,
+  files: File[],
+  anonymousUserId: string,
 ): Promise<ScreenshotAnalysisResponse> {
-  const formData = new FormData();
-  formData.append("file", file);
+  return retryableRequest(async () => {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    // Append anonymous_user_id as query param
+    const params = new URLSearchParams({ anonymous_user_id: anonymousUserId });
 
-  const response = await fetchWithTimeout(
-    `${API_BASE_URL}/api/v1/analyze-screenshot`,
-    {
-      method: "POST",
-      body: formData,
-      // 不设置 Content-Type，让浏览器自动设置 multipart/form-data 边界
-    },
-    SCREENSHOT_TIMEOUT,
-  );
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/analyze-screenshot?${params.toString()}`,
+      {
+        method: "POST",
+        body: formData,
+      },
+      SCREENSHOT_TIMEOUT,
+    );
 
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    const detail =
-      errorBody.detail || `Upload failed with status ${response.status}`;
-    throw new ApiError(detail, response.status);
-  }
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      const detail =
+        errorBody.detail || `Upload failed with status ${response.status}`;
+      throw new ApiError(detail, response.status);
+    }
 
-  const data = await response.json();
-  if (!data.extracted_text) {
-    throw new ApiError("No text extracted from screenshot.", response.status);
-  }
+    const data = await response.json();
+    if (!data.extracted_text) {
+      throw new ApiError("No text extracted from screenshot.", response.status);
+    }
 
-  return data as ScreenshotAnalysisResponse;
+    return data as ScreenshotAnalysisResponse;
+  });
 }
 
 export async function submitFeedback(
   helpful: boolean,
   analysisId?: string,
+  reason: string[] = [],
+  comment: string = "",
 ): Promise<void> {
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/api/v1/feedback`,
@@ -171,7 +210,12 @@ export async function submitFeedback(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ helpful, analysis_id: analysisId || null }),
+      body: JSON.stringify({
+        helpful,
+        analysis_id: analysisId || null,
+        reason,
+        comment,
+      }),
     },
     5000,
   );
@@ -179,4 +223,72 @@ export async function submitFeedback(
   if (!response.ok) {
     console.warn("Feedback submission failed:", response.status);
   }
+}
+
+export async function submitOutcome(
+  replyUsed: string,
+  outcome: string = "",
+  analysisId?: string,
+): Promise<void> {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/api/v1/outcome`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        analysis_id: analysisId || null,
+        reply_used: replyUsed,
+        outcome,
+      }),
+    },
+    5000,
+  );
+
+  if (!response.ok) {
+    console.warn("Outcome submission failed:", response.status);
+  }
+}
+
+export async function getUsage(anonymousUserId: string): Promise<UsageInfo> {
+  const params = new URLSearchParams({ anonymous_user_id: anonymousUserId });
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/api/v1/usage?${params.toString()}`,
+    { method: "GET" },
+    5000,
+  );
+
+  if (!response.ok) {
+    console.warn("Usage fetch failed:", response.status);
+    return { analysis_used: 0, analysis_limit: 3, analysis_reward: 0, screenshot_used: 0, screenshot_limit: 1, max_chat_length: 2000, max_screenshots_per_request: 3, share_reward_enabled: false };
+  }
+
+  return response.json();
+}
+
+export async function claimShareReward(
+  anonymousUserId: string,
+  shareType: string,
+  shareHash: string,
+): Promise<ShareRewardResponse> {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/api/v1/share-reward`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        anonymous_user_id: anonymousUserId,
+        share_type: shareType,
+        share_hash: shareHash,
+      }),
+    },
+    5000,
+  );
+
+  if (!response.ok) {
+    return { granted: false, bonus_count: 0, message: "Reward claim failed" };
+  }
+
+  return response.json();
 }
