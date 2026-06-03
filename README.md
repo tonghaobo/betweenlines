@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # BetweenLines（字里行间）
 
 > Understand the vibe before you reply.
@@ -37,3 +38,7 @@
 - ❌ 不制造焦虑（禁止 PUA）
 - ✅ 聊天记录默认不存储
 - ✅ 输出自然、可发送
+=======
+# betweenlines
+betweenlines project
+>>>>>>> bde70797bd44a29db0c422ec78a03135b9b3ed35
