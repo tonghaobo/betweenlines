@@ -258,6 +258,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
         <div className="flex flex-col items-center gap-3 py-8">
           <LoadingSpinner />
           <p className="text-sm text-gray-500">{t.chatInput.extracting}</p>
+          <p className="text-xs text-gray-400">{t.chatInput.extractingHint}</p>
         </div>
       )}
 

@@ -42,6 +42,7 @@ const en = {
     dragOrClick: "Drag & drop a screenshot here, or click to upload",
     supportedFormats: "Supports PNG, JPEG, WebP, max 10MB",
     extracting: "Extracting text...",
+    extractingHint: "May take up to 2 minutes for large screenshots",
     extractedPreview: "Text extracted from screenshot. Confirm to analyze:",
     confirmAnalyze: "Confirm & Analyze",
     cancelExtract: "Cancel, re-upload",

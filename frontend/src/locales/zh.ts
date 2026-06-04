@@ -41,6 +41,7 @@ const zh = {
     dragOrClick: "拖拽截图到此处，或点击上传",
     supportedFormats: "支持 PNG、JPEG、WebP，最大 10MB",
     extracting: "提取文字中...",
+    extractingHint: "大尺寸截图可能需要 1-2 分钟",
     extractedPreview: "已从截图提取以下文字，确认后开始分析：",
     confirmAnalyze: "确认并分析",
     cancelExtract: "取消，重新上传",
