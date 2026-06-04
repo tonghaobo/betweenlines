@@ -28,6 +28,8 @@ backend/
 │   ├── services/
 │   │   ├── doubao_service.py   # AI 服务（文本+视觉）
 │   │   ├── chat_cleaner.py     # 输入清洗+安全检测
+│   │   ├── chat_normalizer.py  # 聊天结构标准化（V2：自动解析参与者）
+│   │   ├── usage_service.py    # 配额管理（V2：统一计数）
 │   │   └── storage.py          # SQLite 存储
 │   ├── schemas/
 │   │   └── chat.py        # Pydantic 请求/响应模型
@@ -130,6 +132,22 @@ extract_text_from_screenshot(image_bytes: bytes) -> ScreenshotAnalysisResponse
 | `clean_chat_content()` | 去空白、规范化换行、去多余空行 |
 | `validate_chat_format()` | 检测对话格式，返回警告（不阻止） |
 | `is_potentially_harmful()` | 关键词黑名单检测（PUA、把妹、泡妞等） |
+
+### 聊天标准化 (`services/chat_normalizer.py`)
+
+**V2 新增**：自动解析任意格式的聊天输入。
+
+| 功能 | 说明 |
+|------|------|
+| `normalize_chat(text)` | 识别"他/她/我"等格式，标准化聊天结构 |
+| `extract_participants(text)` | 自动提取对话参与者标识 |
+| `detect_wechat_style(text)` | 检测是否为微信风格的对话格式 |
+
+支持直接粘贴微信聊天（不需要手动格式化），也兼容无格式纯文本。
+
+### 配额管理 (`services/usage_service.py`)
+
+**V2 统一配额**：文字分析和截图分析共享同一个每日限额（默认 3 次/天）。不再区分 text_analysis / image_analysis 两种配额。
 
 ### 数据存储 (`services/storage.py`)
 

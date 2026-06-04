@@ -28,8 +28,9 @@ frontend/src/
 │   ├── hero/               # 首页 Hero 区域
 │   │   ├── HeroSection.tsx
 │   │   └── ExampleChats.tsx
-│   ├── chat-input/         # 输入框
-│   │   ├── ChatInput.tsx          # 文本 + 截图双模式
+│   ├── chat-input/         # 输入框（V2：统一入口）
+│   │   ├── InputBox.tsx            # 统一输入组件（文本+截图一框搞定）
+│   │   ├── ChatInput.tsx           # [已弃用] 旧双模式输入
 │   │   └── RelationshipSelector.tsx # 关系类型选择器
 │   ├── result/             # 分析结果
 │   │   ├── ResultPage.tsx       # 结果页容器
@@ -78,12 +79,12 @@ frontend/src/
             ├── 正常状态
             │   ├── <HeroSection />
             │   ├── <ExampleChats />
-            │   ├── <ChatInput />          ← 文本/截图双模式
+            │   ├── <InputBox />           ← 统一输入（粘贴文字/图片/拖拽一框搞定）
             │   ├── <FollowUpReminder />   ← 24h后回访浮层 (条件显示)
             │   └── 错误提示 (如有)
             ├── Loading 状态
             │   ├── <HeroSection />
-            │   ├── <ChatInput disabled />
+            │   ├── <InputBox isLoading />
             │   └── <LoadingOverlay />
             └── 结果状态
                 ├── 返回按钮
@@ -101,34 +102,32 @@ frontend/src/
 
 ## 核心交互流程
 
-### 聊天分析流程
+### V2 统一输入流程
 
 ```
-1. 用户在 ChatInput 输入/粘贴聊天记录
-2. 点击"分析"或 Cmd+Enter
-3. page.tsx: handleSubmit() → useChatAnalysis.analyze()
-4. useChatAnalysis 设置 isLoading=true
+1. 用户在 InputBox 粘贴聊天文字 / 截图 / 图片（统一入口，无需选择模式）
+2. 系统自动识别输入类型：
+   ├── 纯文本 → 直接分析
+   └── 图片 → 自动 OCR 提取文字
+3. OCR 提取后显示文字确认，支持"继续添加截图"追加更多对话
+4. 确认分析 → page.tsx: handleSubmit() → useChatAnalysis.analyze()
 5. api.ts: analyzeChat() 发送 POST 请求
    ├── 30s 超时
    ├── 失败自动重试 2 次
    └── 验证响应格式
-6. 成功 → isLoading=false, result 更新
-7. page.tsx 切换到结果视图，自动滚动
-8. 用户可复制回复建议、提交反馈、标记采用率
-```
+6. 成功 → result 更新，切换到结果视图
+7. 结果显示状态标签、分析详情、回复建议、节奏建议
+8. 用户可复制回复、提交反馈（👍/👎）、标记是否采用
 
-### 截图 OCR 流程
+### 输入方式支持
 
-```
-1. 用户切换到截图模式
-2. 拖拽/点击上传图片 (PNG/JPEG/WebP, <10MB)
-3. api.ts: analyzeScreenshot() 发送 multipart/form-data
-   ├── 60s 超时
-   └── 后端返回 extracted_text
-4. 显示提取的文字供用户确认
-5. 用户确认 → 走分析流程
-   用户取消 → 重新上传
-```
+| 方式 | 支持 | 说明 |
+|------|------|------|
+| 粘贴微信聊天文字 | ✅ | 无需手动格式化，AI 自动识别 |
+| 粘贴截图（⌘V） | ✅ | 直接从剪贴板粘贴图片 |
+| 拖拽图片 | ✅ | 支持多张同时拖入 |
+| 点击上传 | ✅ | 文件选择器兜底 |
+| 继续添加截图 | ✅ | 提取文字后可按需追加更多截图 |
 
 ### 反馈闭环流程
 
@@ -184,7 +183,7 @@ frontend/src/
 | 功能 | 函数 | 超时 | 重试 |
 |------|------|------|------|
 | 聊天分析 | `analyzeChat()` | 30s | 2次 |
-| 截图OCR | `analyzeScreenshot()` | 60s | 2次 |
+| 截图OCR | `analyzeScreenshot()` | 300s | 2次 |
 | 提交反馈 | `submitFeedback(helpful, analysisId?, reason?, comment?)` | 5s | 无 |
 | 提交结果 | `submitOutcome(replyUsed, outcome?, analysisId?)` | 5s | 无 |
 

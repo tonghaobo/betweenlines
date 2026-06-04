@@ -14,7 +14,7 @@
 │  │  │  ───────│──│──────────│──│───│  ┌─────────────┐ │ │   │  │
 │  │  │         │  │          │  │   │  │ LangSwitcher │ │ │   │  │
 │  │  │         │  │ Hero     │  │   │  │ (fixed 右上) │ │ │   │  │
-│  │  │         │  │ ChatInput│  │   │  └─────────────┘ │ │   │  │
+│  │  │         │  │ InputBox │  │   │  └─────────────┘ │ │   │  │
 │  │  │         │  │ Result   │  │   │  {children}      │ │   │  │
 │  │  │         │  │ Feedback │  │   │  └──────────────────┘ │   │  │
 │  │  └─────────┘  └──────────┘  └────────────────────────┘   │  │
@@ -49,9 +49,11 @@
 │  └── 调用 DoubaoService                                        │
 │                                                                  │
 │  services/                                                     │
-│  ├── doubao_service.py  → AI 调用 (文本 + 视觉)                 │
-│  ├── chat_cleaner.py    → 输入清洗 + 安全检测                   │
-│  └── storage.py         → SQLite 存储                           │
+│  ├── doubao_service.py   → AI 调用 (文本 + 视觉)                │
+│  ├── chat_cleaner.py     → 输入清洗 + 安全检测                  │
+│  ├── chat_normalizer.py  → 聊天结构标准化（V2）                 │
+│  ├── usage_service.py    → 统一配额管理（V2）                   │
+│  └── storage.py          → SQLite 存储                          │                           │
 │                                                                  │
 │  schemas/chat.py        → Pydantic 请求/响应模型                │
 └─────────────────────────────────────────────────────────────────┘
@@ -79,10 +81,16 @@
 
 ## 数据流
 
-### 主流程：聊天分析
+### 主流程：统一输入 → 分析（V2）
 
 ```
-用户输入聊天记录
+用户粘贴聊天 / 截图 / 图片
+    │
+    ▼
+[前端] InputBox.tsx: 自动识别输入类型
+    ├── 纯文本 → 直接进入分析
+    └── 图片 → 前端压缩（2048px, JPEG 70%）
+             → OCR 提取文字 → 用户确认/继续添加
     │
     ▼
 [前端] page.tsx: handleSubmit()
@@ -95,9 +103,11 @@
     │
     ▼
 [后端] routers/chat.py: POST /api/v1/analyze
+    ├── 统一配额检查（文字+图片共用 3 次/天）
     ├── 输入验证 (10~5000 字符)
     ├── 违规词检测 (is_potentially_harmful)
     ├── 内容清洗 (clean_chat_content)
+    ├── 聊天标准化 (normalize_chat) ← 自动解析参与者
     └── 格式验证 (validate_chat_format)
     │
     ▼
@@ -116,7 +126,7 @@
     ▼
 [前端] page.tsx 根据状态渲染
     ├── isLoading  → LoadingOverlay
-    ├── result     → ResultPage + FeedbackSection + ReplyAdoptionCard
+    ├── result     → ResultPage + FeedbackSection + ReplyAdoptionCard + ShareButton
     └── error      → 错误提示
 ```
 
@@ -172,17 +182,24 @@
 
 ### 4. 为什么截图 OCR 分两步？
 
-- 先提取文字 → 用户确认 → 再分析
-- 避免 OCR 识别错误导致分析偏差
+- 先提取文字 → 用户确认/继续添加更多截图 → 再分析
+- 支持多批次截图追加（对话很长时可以分次上传）
+- 避免 OCR 识别错误直接进入分析导致偏差
 - 用户体验更好（可以修正识别结果）
 
-### 5. 为什么前端直接调后端而非走 Next.js API Route？
+### 5. 为什么配额统一计数而非分开？
+
+- V1 的文字（3次/天）和截图（1次/天）独立计数，但用户几乎只用截图
+- V2 合并为统一配额 3 次/天，简化用户认知
+- 后端 `usage_service.py` 统一使用 `text_analysis_count` 列
+
+### 6. 为什么前端直接调后端而非走 Next.js API Route？
 
 - Next.js rewrite 在 dev 模式做代理，避免 CORS 问题
 - 生产环境前端直连后端，减少中间层
 - 后端独立部署，架构更清晰
 
-### 6. 为什么反馈系统分 Phase 渐进实现？
+### 7. 为什么反馈系统分 Phase 渐进实现？
 
 - Phase 1-2 先建立数据闭环（反馈采集 + 结果追踪）
 - Phase 3-5 基于真实数据再优化（标签化 + Prompt 优化 + 相似案例）
