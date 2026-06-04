@@ -27,6 +27,7 @@ const zh = {
     other: "其他",
   },
   chatInput: {
+    unifiedPlaceholder: "粘贴聊天内容 / 截图 / 图片，自动识别",
     placeholder: "在此粘贴聊天记录...\n\n示例格式：\n她: 今天在干嘛呀\n我: 刚下班，好累哈哈\n她: 辛苦啦，吃饭了吗\n我: 还没呢",
     charCount: "{current}/{max}",
     minCharsError: "请至少输入 {min} 个字符以进行分析。",
@@ -50,8 +51,8 @@ const zh = {
     usageRemaining: "今日剩余 {remaining} 次分析",
     usageExhausted: "今天份的智慧用完啦～",
     screenshotUsageRemaining: "今日剩余 {remaining} 次截图上传",
-    usageSummary: "文字分析：{used}/{limit}  ·  图片分析：{sUsed}/{sLimit}",
-    usageSummaryExhausted: "文字分析：{used}/{limit}  ·  图片分析：{sUsed}/{sLimit}",
+    usageSummary: "今日剩余：{used}/{limit} 次",
+    usageSummaryExhausted: "今日剩余：{used}/{limit} 次",
     maxScreenshotsHint: "单次最多上传 {max} 张截图",
     maxScreenshotsError: "单次最多上传 {max} 张截图。",
   },

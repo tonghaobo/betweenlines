@@ -88,6 +88,10 @@ async def analyze_chat(
         if warnings:
             logger.info(f"Chat format warnings: {warnings}")
 
+        # Normalize chat structure (auto-parse participants, remove noise)
+        from app.services.chat_normalizer import normalize_chat
+        cleaned_content = normalize_chat(cleaned_content)
+
         result = await service.analyze_chat(cleaned_content, request_body.relationship_type)
         chat_status_result = result.chat_status.value
 
@@ -159,7 +163,7 @@ async def analyze_screenshot(
     for f in files:
         if f.content_type not in settings.ALLOWED_IMAGE_TYPES:
             # Undo increment on validation failure
-            _undo_usage_increment(anonymous_user_id, "screenshot")
+            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(
                 status_code=400,
                 detail=f"不支持的文件格式：{f.content_type}。请上传 PNG、JPEG 或 WebP 格式的图片。",
@@ -171,13 +175,13 @@ async def analyze_screenshot(
     for f in files:
         image_bytes = await f.read()
         if len(image_bytes) > settings.MAX_SCREENSHOT_SIZE:
-            _undo_usage_increment(anonymous_user_id, "screenshot")
+            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(
                 status_code=400,
                 detail=f"图片过大（{len(image_bytes) / 1024 / 1024:.1f}MB），请上传不超过 10MB 的图片。",
             )
         if len(image_bytes) == 0:
-            _undo_usage_increment(anonymous_user_id, "screenshot")
+            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(status_code=400, detail="上传的图片为空，请重新选择。")
         total_size += len(image_bytes)
         file_data.append((image_bytes, f.content_type))
@@ -194,7 +198,7 @@ async def analyze_screenshot(
                 logger.warning(f"Screenshot {i + 1}: insufficient text extracted")
 
         if not extracted_parts:
-            _undo_usage_increment(anonymous_user_id, "screenshot")
+            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(
                 status_code=400,
                 detail="未能从图片中提取到足够的聊天文字。请确保截图包含清晰的聊天消息。",
@@ -212,7 +216,7 @@ async def analyze_screenshot(
         raise
     except Exception as e:
         logger.error(f"Screenshot analysis error: {str(e)}", exc_info=True)
-        _undo_usage_increment(anonymous_user_id, "screenshot")
+        _undo_usage_increment(anonymous_user_id, "analysis")
         raise HTTPException(
             status_code=500,
             detail="截图分析失败，请稍后重试。",

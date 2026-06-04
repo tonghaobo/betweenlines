@@ -28,23 +28,18 @@ def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
 
     Args:
         anonymous_user_id: Client-generated anonymous ID (e.g. cc_8a4f21d3)
-        usage_type: "analysis" or "screenshot"
+        usage_type: "analysis" or "screenshot" (both count against unified analysis quota)
 
     Returns:
         {"allowed": bool, "used": int, "limit": int, "detail": str | None}
     """
     usage = get_daily_usage(anonymous_user_id)
 
-    if usage_type == "analysis":
-        used = usage["analysis_count"]
-        base_limit = settings.FREE_DAILY_ANALYSIS_LIMIT
-        reward_count = _get_reward_count(anonymous_user_id)
-        effective_limit = base_limit + min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY)
-    elif usage_type == "screenshot":
-        used = usage["screenshot_count"]
-        effective_limit = settings.FREE_DAILY_SCREENSHOT_LIMIT
-    else:
-        return {"allowed": False, "used": 0, "limit": 0, "detail": f"Unknown usage type: {usage_type}"}
+    # V2: unified quota — text and image analysis share the same daily limit
+    used = usage["analysis_count"]
+    base_limit = settings.FREE_DAILY_ANALYSIS_LIMIT
+    reward_count = _get_reward_count(anonymous_user_id)
+    effective_limit = base_limit + min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY)
 
     if used >= effective_limit:
         return {
@@ -54,12 +49,11 @@ def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
             "detail": "daily_limit_reached",
         }
 
-    # Increment usage
+    # Increment usage (always increments text_analysis_count for unified quota)
     try:
-        new_count = increment_daily_usage(anonymous_user_id, usage_type)
+        new_count = increment_daily_usage(anonymous_user_id, "analysis")
     except Exception as e:
         logger.warning(f"Failed to increment usage: {e}")
-        # Allow request even if tracking fails
         new_count = used + 1
 
     return {
@@ -71,15 +65,16 @@ def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
 
 
 def get_usage_info(anonymous_user_id: str) -> dict:
-    """Get usage info for a user."""
+    """Get usage info for a user (V2: unified quota — all analysis types share one limit)."""
     usage = get_daily_usage(anonymous_user_id)
     reward_count = _get_reward_count(anonymous_user_id)
+    reward = min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY) if settings.ENABLE_SHARE_REWARD else 0
     return {
         "analysis_used": usage["analysis_count"],
         "analysis_limit": settings.FREE_DAILY_ANALYSIS_LIMIT,
-        "analysis_reward": min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY) if settings.ENABLE_SHARE_REWARD else 0,
-        "screenshot_used": usage["screenshot_count"],
-        "screenshot_limit": settings.FREE_DAILY_SCREENSHOT_LIMIT,
+        "analysis_reward": reward,
+        "screenshot_used": usage["analysis_count"],  # V2: same bucket
+        "screenshot_limit": settings.FREE_DAILY_ANALYSIS_LIMIT,  # V2: same limit
         "max_chat_length": settings.MAX_CHAT_LENGTH,
         "max_screenshots_per_request": settings.MAX_SCREENSHOTS_PER_REQUEST,
         "share_reward_enabled": settings.ENABLE_SHARE_REWARD,

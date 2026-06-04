@@ -28,6 +28,7 @@ const en = {
     other: "Other",
   },
   chatInput: {
+    unifiedPlaceholder: "Paste chat / screenshot here, auto-detect",
     placeholder: "Paste your chat here...\n\nExample format:\nshe: Hey, what are you up to\nme: Just got off work, so tired haha\nshe: That's rough, had dinner yet?\nme: Not yet",
     charCount: "{current}/{max}",
     minCharsError: "Please enter at least {min} characters for analysis.",
@@ -51,8 +52,8 @@ const en = {
     usageRemaining: "{remaining} analyses left today",
     usageExhausted: "Brain cells depleted for today 🧠",
     screenshotUsageRemaining: "{remaining} screenshots left today",
-    usageSummary: "Text: {used}/{limit}  ·  Image: {sUsed}/{sLimit}",
-    usageSummaryExhausted: "Text: {used}/{limit}  ·  Image: {sUsed}/{sLimit}",
+    usageSummary: "Today: {used}/{limit} analyses left",
+    usageSummaryExhausted: "Today: {used}/{limit} analyses left",
     maxScreenshotsHint: "Up to {max} screenshots at a time",
     maxScreenshotsError: "You can upload up to {max} screenshots at a time.",
   },

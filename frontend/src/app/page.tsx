@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { HeroSection } from "@/components/hero/HeroSection";
 import { ExampleChats } from "@/components/hero/ExampleChats";
-import { ChatInput } from "@/components/chat-input/ChatInput";
+import { InputBox } from "@/components/chat-input/InputBox";
 import { useChatAnalysis } from "@/lib/useChatAnalysis";
 import { ResultPage } from "@/components/result/ResultPage";
 import { FeedbackSection } from "@/components/feedback/FeedbackSection";
@@ -62,7 +62,7 @@ export default function Home() {
     return (
       <div className="flex flex-col items-center space-y-8">
         <HeroSection />
-        <ChatInput onSubmit={handleSubmit} isLoading={true} initialText={exampleText} />
+        <InputBox onSubmit={handleSubmit} isLoading={true} initialText={exampleText} />
         <LoadingOverlay />
       </div>
     );
@@ -95,7 +95,7 @@ export default function Home() {
     <div className="flex flex-col items-center space-y-8">
       <HeroSection />
       <ExampleChats onSelect={handleSelectExample} />
-      <ChatInput onSubmit={handleSubmit} isLoading={false} initialText={exampleText} />
+      <InputBox onSubmit={handleSubmit} isLoading={false} initialText={exampleText} />
       <FollowUpReminder />
 
       {error && !limitReached && (
