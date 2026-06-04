@@ -43,6 +43,7 @@ const zh = {
     extractedPreview: "已从截图提取以下文字，确认后开始分析：",
     confirmAnalyze: "确认并分析",
     cancelExtract: "取消，重新上传",
+    addMoreScreenshots: "继续添加截图",
     switchToText: "切换到文本输入",
     switchToScreenshot: "切换到截图上传",
     pasteHint: "也可以直接按 ⌘/Ctrl + V 粘贴截图",

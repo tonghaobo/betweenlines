@@ -169,7 +169,8 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
       const compressed = await Promise.all(files.map(compressImage));
       const anonymousUserId = getAnalyticsUserId();
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, anonymousUserId);
-      setExtractedText(result.extracted_text);
+      // If already have extracted text, append new text (for multi-batch upload)
+      setExtractedText((prev) => prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text);
       refreshUsage();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "截图分析失败";
@@ -253,6 +254,10 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
     if (extractedText && !isLoading) {
       onSubmit(extractedText.trim(), relationshipType, "screenshot");
     }
+  };
+
+  const handleAddMoreScreenshots = () => {
+    fileInputRef.current?.click();
   };
 
   const handleCancelExtract = () => {
@@ -463,27 +468,45 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
               <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-700 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
                 {extractedText}
               </div>
-              <div className="flex gap-2">
+              {extracting && (
+                <div className="flex items-center justify-center gap-2 py-2 text-sm text-blue-600">
+                  <LoadingSpinner />
+                  {t.chatInput.extracting}
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCancelExtract}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={isLoading}
+                  >
+                    {t.chatInput.cancelExtract}
+                  </button>
+                  <button
+                    onClick={handleConfirmExtracted}
+                    disabled={isLoading}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <LoadingSpinner />
+                        {t.chatInput.analyzing}
+                      </>
+                    ) : (
+                      t.chatInput.confirmAnalyze
+                    )}
+                  </button>
+                </div>
                 <button
-                  onClick={handleCancelExtract}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={handleAddMoreScreenshots}
                   disabled={isLoading}
+                  className="w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  {t.chatInput.cancelExtract}
-                </button>
-                <button
-                  onClick={handleConfirmExtracted}
-                  disabled={isLoading}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <LoadingSpinner />
-                      {t.chatInput.analyzing}
-                    </>
-                  ) : (
-                    t.chatInput.confirmAnalyze
-                  )}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  {t.chatInput.addMoreScreenshots}
                 </button>
               </div>
             </div>

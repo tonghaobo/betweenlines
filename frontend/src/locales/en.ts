@@ -44,6 +44,7 @@ const en = {
     extractedPreview: "Text extracted from screenshot. Confirm to analyze:",
     confirmAnalyze: "Confirm & Analyze",
     cancelExtract: "Cancel, re-upload",
+    addMoreScreenshots: "Add more screenshots",
     switchToText: "Switch to text input",
     switchToScreenshot: "Switch to screenshot upload",
     pasteHint: "You can also press ⌘/Ctrl + V to paste a screenshot",
