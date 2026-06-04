@@ -60,16 +60,6 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
     const { t } = useI18n();
     const vibe = statusToVibe[data.chat_status] || "normal";
 
-    // Truncate analysis to 2 lines (~60 chars)
-    const analysisShort = data.analysis.length > 60
-      ? data.analysis.slice(0, 60) + "..."
-      : data.analysis;
-
-    // Get first advice
-    const adviceShort = data.timing_advice.length > 40
-      ? data.timing_advice.slice(0, 40) + "..."
-      : data.timing_advice;
-
     // Pick a fun tag (deterministic based on status hash)
     const tags = funTags[vibe] || funTags.normal;
     const tagIndex = data.analysis.length % tags.length;
@@ -115,11 +105,11 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
               </div>
             </div>
 
-            <p className="text-sm text-gray-600 text-center leading-relaxed max-w-[280px]">{analysisShort}</p>
+            <p className="text-sm text-gray-600 text-center leading-relaxed max-w-[280px] line-clamp-3">{data.analysis}</p>
 
             <div className="px-4 py-2 rounded-xl bg-gray-50 border border-gray-100 w-full max-w-[280px]">
               <p className="text-[10px] text-gray-400 mb-0.5">{t.share.advice}</p>
-              <p className="text-sm text-gray-700">{adviceShort}</p>
+              <p className="text-sm text-gray-700 leading-relaxed line-clamp-2">{data.timing_advice}</p>
             </div>
 
             <p className="text-xs text-gray-400 italic text-center">
@@ -156,11 +146,11 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
               <span className="font-medium text-gray-700">{relationshipLabels[relationshipType]}</span>
             </div>
 
-            <p className="text-xs text-gray-600 leading-relaxed">{analysisShort}</p>
+            <p className="text-xs text-gray-600 leading-relaxed line-clamp-4">{data.analysis}</p>
 
             <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
               <p className="text-[9px] text-gray-400">{t.share.advice}</p>
-              <p className="text-[11px] text-gray-700 leading-snug">{adviceShort}</p>
+              <p className="text-[11px] text-gray-700 leading-snug line-clamp-2">{data.timing_advice}</p>
             </div>
           </div>
 
