@@ -35,8 +35,18 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
   const refreshUsage = useCallback(async () => {
     try {
       const uid = getAnalyticsUserId();
-      setUsage(await getUsage(uid));
-    } catch { /* silent */ }
+      const info = await getUsage(uid);
+      setUsage(info);
+    } catch (err) {
+      console.warn("Failed to fetch usage:", err);
+      // Show default quota even if API fails
+      setUsage({
+        analysis_used: 0, analysis_limit: 3, analysis_reward: 0,
+        screenshot_used: 0, screenshot_limit: 3,
+        max_chat_length: 2000, max_screenshots_per_request: 3,
+        share_reward_enabled: false,
+      });
+    }
   }, []);
 
   useEffect(() => { refreshUsage(); }, [refreshUsage]);
