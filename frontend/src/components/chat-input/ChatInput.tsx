@@ -111,6 +111,40 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
     return null;
   };
 
+  /** Compress image to reduce upload size and speed up vision model processing */
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxDim = 2048;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(file); return; }
+            resolve(new File([blob], file.name, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.7,
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  };
+
   const processScreenshot = useCallback(async (files: File[]) => {
     if (files.length > MAX_SCREENSHOTS) {
       setScreenshotError(t.chatInput.maxScreenshotsError.replace("{max}", String(MAX_SCREENSHOTS)));
@@ -131,8 +165,10 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
     track("image_analysis_started", { file_count: files.length });
 
     try {
+      // Compress images before upload (reduces model processing time)
+      const compressed = await Promise.all(files.map(compressImage));
       const anonymousUserId = getAnalyticsUserId();
-      const result: ScreenshotAnalysisResponse = await analyzeScreenshot(files, anonymousUserId);
+      const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, anonymousUserId);
       setExtractedText(result.extracted_text);
       refreshUsage();
     } catch (err) {

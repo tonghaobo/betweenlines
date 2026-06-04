@@ -1,6 +1,6 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const REQUEST_TIMEOUT = 30000;
-const SCREENSHOT_TIMEOUT = 60000; // 截图分析需要更长时间
+const SCREENSHOT_TIMEOUT = 300000; // 截图分析最多等待5分钟（视觉模型可能较慢）
 const MAX_RETRIES = 2;
 
 export type RelationshipType = "romantic" | "friend" | "family" | "coworker" | "other";
