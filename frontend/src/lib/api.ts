@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Dev (via Next.js rewrites): API_BASE_URL = "" → relative path /api/v1/...
+// Prod (Vercel): set NEXT_PUBLIC_API_URL in vercel.json to Railway backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const REQUEST_TIMEOUT = 30000;
 const SCREENSHOT_TIMEOUT = 300000; // 截图分析最多等待5分钟（视觉模型可能较慢）
 const MAX_RETRIES = 2;
@@ -261,7 +263,7 @@ export async function getUsage(anonymousUserId: string): Promise<UsageInfo> {
 
   if (!response.ok) {
     console.warn("Usage fetch failed:", response.status);
-    return { analysis_used: 0, analysis_limit: 3, analysis_reward: 0, screenshot_used: 0, screenshot_limit: 1, max_chat_length: 2000, max_screenshots_per_request: 3, share_reward_enabled: false };
+    return { analysis_used: 0, analysis_limit: 3, analysis_reward: 0, screenshot_used: 0, screenshot_limit: 3, max_chat_length: 2000, max_screenshots_per_request: 3, share_reward_enabled: false };
   }
 
   return response.json();

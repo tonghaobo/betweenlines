@@ -134,7 +134,7 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
         canvas.toBlob(
           (blob) => {
             if (!blob) { resolve(file); return; }
-            resolve(new File([blob], file.name, { type: "image/jpeg" }));
+            resolve(new File([blob], file.name, { type: "image/jpeg", lastModified: file.lastModified }));
           },
           "image/jpeg",
           0.7,
@@ -158,15 +158,18 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
       }
     }
 
+    // Sort by capture timestamp (lastModified) to preserve chronological order
+    const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
+
     setScreenshotError(null);
-    setSelectedFile(files.length === 1 ? files[0] : null);
+    setSelectedFile(sorted.length === 1 ? sorted[0] : null);
     setExtracting(true);
 
-    track("image_analysis_started", { file_count: files.length });
+    track("image_analysis_started", { file_count: sorted.length });
 
     try {
       // Compress images before upload (reduces model processing time)
-      const compressed = await Promise.all(files.map(compressImage));
+      const compressed = await Promise.all(sorted.map(compressImage));
       const anonymousUserId = getAnalyticsUserId();
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, anonymousUserId);
       // If already have extracted text, append new text (for multi-batch upload)
@@ -361,14 +364,12 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
             {t.chatInput.toSubmit}
           </p>
 
-          {/* Daily usage indicator */}
+          {/* Daily usage indicator — unified quota for text & screenshot */}
           {usage && (
             <p className={`text-xs text-center ${usage.analysis_used >= (usage.analysis_limit + usage.analysis_reward) ? "text-amber-600 font-medium" : "text-gray-400"}`}>
               {t.chatInput.usageSummary
                 .replace("{used}", String(usage.analysis_used))
                 .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))
-                .replace("{sUsed}", String(usage.screenshot_used))
-                .replace("{sLimit}", String(usage.screenshot_limit))
               }
             </p>
           )}
@@ -378,6 +379,18 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
       {/* Screenshot upload mode */}
       {mode === "screenshot" && (
         <>
+          {/* Hidden file input — position off-viewport, not clipped, so click() works everywhere */}
+          <input
+            ref={fileInputRef}
+            id="screenshot-file-input"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            onChange={handleFileSelect}
+            className="fixed top-0 -left-96 opacity-0"
+            tabIndex={-1}
+          />
+
           {!extractedText && (
             <>
               {/* Drop zone */}
@@ -426,15 +439,6 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
                 )}
               </div>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-
               {/* Screenshot error */}
               {screenshotError && (
                 <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
@@ -447,14 +451,12 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
                 {t.chatInput.pasteHint}
               </p>
 
-              {/* Screenshot usage indicator */}
+              {/* Screenshot usage indicator — same unified quota */}
               {usage && (
-                <p className={`text-xs text-center ${usage.screenshot_used >= usage.screenshot_limit ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+                <p className={`text-xs text-center ${usage.analysis_used >= (usage.analysis_limit + usage.analysis_reward) ? "text-amber-600 font-medium" : "text-gray-400"}`}>
                   {t.chatInput.usageSummary
                     .replace("{used}", String(usage.analysis_used))
                     .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))
-                    .replace("{sUsed}", String(usage.screenshot_used))
-                    .replace("{sLimit}", String(usage.screenshot_limit))
                   }
                 </p>
               )}
@@ -498,16 +500,15 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
                     )}
                   </button>
                 </div>
-                <button
-                  onClick={handleAddMoreScreenshots}
-                  disabled={isLoading}
-                  className="w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+                <label
+                  htmlFor="screenshot-file-input"
+                  className={`w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5 ${isLoading ? "opacity-50 pointer-events-none" : "cursor-pointer"}`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   {t.chatInput.addMoreScreenshots}
-                </button>
+                </label>
               </div>
             </div>
           )}

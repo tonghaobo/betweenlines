@@ -30,7 +30,7 @@ class Settings:
 
     # ── 请求参数 ──
     TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.7"))
-    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "1000"))
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "400"))
     VISION_TEMPERATURE: float = float(os.getenv("VISION_TEMPERATURE", "0.3"))
     VISION_MAX_TOKENS: int = int(os.getenv("VISION_MAX_TOKENS", "2000"))
 
@@ -38,9 +38,8 @@ class Settings:
     RATE_LIMIT_REQUESTS: int = 20
     RATE_LIMIT_WINDOW: int = 60
 
-    # ── 每日使用限额（免费用户，为会员体系预留） ──
-    FREE_DAILY_ANALYSIS_LIMIT: int = int(os.getenv("FREE_DAILY_ANALYSIS_LIMIT", "3"))
-    FREE_DAILY_SCREENSHOT_LIMIT: int = int(os.getenv("FREE_DAILY_SCREENSHOT_LIMIT", "1"))
+    # ── 每日使用限额（免费用户，文字分析和截图上传共享同一配额） ──
+    FREE_DAILY_LIMIT: int = int(os.getenv("FREE_DAILY_LIMIT", "3"))
 
     # ── 内容校验（可通过 .env 配置） ──
     MAX_CHAT_LENGTH: int = int(os.getenv("MAX_CHAT_LENGTH", "2000"))

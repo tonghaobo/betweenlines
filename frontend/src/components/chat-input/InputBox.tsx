@@ -93,7 +93,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
         if (!ctx) { resolve(file); return; }
         ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(
-          (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file),
+          (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg", lastModified: file.lastModified }) : file),
           "image/jpeg", 0.7,
         );
       };
@@ -108,7 +108,9 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
     setExtracting(true);
     track("image_analysis_started", { file_count: files.length });
     try {
-      const compressed = await Promise.all(files.map(compressImage));
+      // Sort by capture time to preserve chronological order
+      const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
+      const compressed = await Promise.all(sorted.map(compressImage));
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, getAnalyticsUserId());
       setExtractedText((prev) => prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text);
       refreshUsage();
@@ -179,14 +181,24 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
     setExtractedText(null);
     setScreenshotError(null);
   };
-  const handleAddMore = () => fileInputRef.current?.click();
-
   // ── Render ──
   const showDropZone = !extractedText && !extracting;
 
   return (
     <div className="w-full max-w-lg space-y-3">
       <RelationshipSelector value={relationshipType} onChange={setRelationshipType} />
+
+      {/* Hidden file input — always rendered, so upload & "add more" buttons work after extraction */}
+      <input
+        ref={fileInputRef}
+        id="screenshot-file-input"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        multiple
+        onChange={handleFileSelect}
+        className="fixed top-0 -left-96 opacity-0"
+        tabIndex={-1}
+      />
 
       {/* Unified input area */}
       {showDropZone && (
@@ -230,21 +242,17 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
               ) : t.chatInput.analyze}
             </button>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
-              className="px-3 py-2.5 text-sm font-medium text-gray-500 bg-gray-100 rounded-xl
-                         hover:bg-gray-200 transition-colors flex items-center gap-1"
+            <label
+              htmlFor="screenshot-file-input"
+              className={`px-3 py-2.5 text-sm font-medium text-gray-500 bg-gray-100 rounded-xl
+                         hover:bg-gray-200 transition-colors flex items-center gap-1 ${isLoading ? "opacity-50 pointer-events-none" : "cursor-pointer"}`}
               title={t.chatInput.uploadScreenshot}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-            </button>
-
-            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple
-              onChange={handleFileSelect} className="hidden" />
+            </label>
           </div>
 
           <p className="text-xs text-gray-400 text-center">
@@ -283,15 +291,16 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
                 {isLoading ? <><LoadingSpinner />{t.chatInput.analyzing}</> : t.chatInput.confirmAnalyze}
               </button>
             </div>
-            <button onClick={handleAddMore} disabled={isLoading}
-              className="w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50
+            <label
+              htmlFor="screenshot-file-input"
+              className={`w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50
                          border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors
-                         flex items-center justify-center gap-1.5">
+                         flex items-center justify-center gap-1.5 ${isLoading ? "opacity-50 pointer-events-none" : "cursor-pointer"}`}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               {t.chatInput.addMoreScreenshots}
-            </button>
+            </label>
           </div>
         </div>
       )}

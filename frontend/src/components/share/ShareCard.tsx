@@ -91,28 +91,28 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
           </div>
 
           {/* Middle: Content */}
-          <div className="flex flex-col items-center gap-4 w-full py-6">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex flex-col items-center gap-3 w-full py-4">
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
               <span>{t.share.relationship}：</span>
               <span className="font-medium text-gray-700">{relationshipLabels[relationshipType]}</span>
             </div>
 
-            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl border ${vibeBg[vibe]} ${vibeBorder[vibe]}`}>
-              <span className="text-2xl">{vibeEmoji[vibe]}</span>
+            <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-2xl border ${vibeBg[vibe]} ${vibeBorder[vibe]}`}>
+              <span className="text-xl">{vibeEmoji[vibe]}</span>
               <div className="text-left">
-                <p className="text-[10px] text-gray-400">{t.share.chatVibe}</p>
-                <p className={`text-base font-semibold ${vibeText[vibe]}`}>{t.share.vibeLevels[vibe]}</p>
+                <p className="text-[9px] text-gray-400">{t.share.chatVibe}</p>
+                <p className={`text-sm font-semibold ${vibeText[vibe]}`}>{t.share.vibeLevels[vibe]}</p>
               </div>
             </div>
 
-            <p className="text-sm text-gray-600 text-center leading-relaxed max-w-[280px] line-clamp-3">{data.analysis}</p>
+            <p className="text-xs text-gray-600 text-center leading-snug max-w-[280px] break-words">{data.analysis}</p>
 
-            <div className="px-4 py-2 rounded-xl bg-gray-50 border border-gray-100 w-full max-w-[280px]">
-              <p className="text-[10px] text-gray-400 mb-0.5">{t.share.advice}</p>
-              <p className="text-sm text-gray-700 leading-relaxed line-clamp-2">{data.timing_advice}</p>
+            <div className="px-3 py-2 rounded-xl bg-gray-50 border border-gray-100 w-full max-w-[280px]">
+              <p className="text-[9px] text-gray-400 mb-0.5">{t.share.advice}</p>
+              <p className="text-xs text-gray-700 leading-snug break-words">{data.timing_advice}</p>
             </div>
 
-            <p className="text-xs text-gray-400 italic text-center">
+            <p className="text-[10px] text-gray-400 italic text-center">
               {t.share.funTag} {funTag}
             </p>
           </div>
@@ -140,17 +140,17 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
             <p className="text-[9px] text-gray-400 mt-0.5">{t.share.cardTagline}</p>
           </div>
 
-          <div className="space-y-2.5 my-3">
-            <div className="flex items-center gap-1 text-[10px] text-gray-500">
+          <div className="space-y-2 my-2">
+            <div className="flex items-center gap-1 text-[9px] text-gray-500">
               <span>{t.share.relationship}：</span>
               <span className="font-medium text-gray-700">{relationshipLabels[relationshipType]}</span>
             </div>
 
-            <p className="text-xs text-gray-600 leading-relaxed line-clamp-4">{data.analysis}</p>
+            <p className="text-[10px] text-gray-600 leading-snug break-words">{data.analysis}</p>
 
-            <div className="px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[9px] text-gray-400">{t.share.advice}</p>
-              <p className="text-[11px] text-gray-700 leading-snug line-clamp-2">{data.timing_advice}</p>
+            <div className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+              <p className="text-[8px] text-gray-400">{t.share.advice}</p>
+              <p className="text-[10px] text-gray-700 leading-snug break-words">{data.timing_advice}</p>
             </div>
           </div>
 

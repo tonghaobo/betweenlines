@@ -37,7 +37,7 @@ def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
 
     # V2: unified quota — text and image analysis share the same daily limit
     used = usage["analysis_count"]
-    base_limit = settings.FREE_DAILY_ANALYSIS_LIMIT
+    base_limit = settings.FREE_DAILY_LIMIT
     reward_count = _get_reward_count(anonymous_user_id)
     effective_limit = base_limit + min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY)
 
@@ -71,10 +71,10 @@ def get_usage_info(anonymous_user_id: str) -> dict:
     reward = min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY) if settings.ENABLE_SHARE_REWARD else 0
     return {
         "analysis_used": usage["analysis_count"],
-        "analysis_limit": settings.FREE_DAILY_ANALYSIS_LIMIT,
+        "analysis_limit": settings.FREE_DAILY_LIMIT,
         "analysis_reward": reward,
         "screenshot_used": usage["analysis_count"],  # V2: same bucket
-        "screenshot_limit": settings.FREE_DAILY_ANALYSIS_LIMIT,  # V2: same limit
+        "screenshot_limit": settings.FREE_DAILY_LIMIT,  # V2: same limit
         "max_chat_length": settings.MAX_CHAT_LENGTH,
         "max_screenshots_per_request": settings.MAX_SCREENSHOTS_PER_REQUEST,
         "share_reward_enabled": settings.ENABLE_SHARE_REWARD,

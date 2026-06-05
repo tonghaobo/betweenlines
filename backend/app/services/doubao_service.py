@@ -18,119 +18,57 @@ _QUOTA_ERROR_SUBSTRINGS = ["quota", "rate_limit", "ModelNotOpen", "insufficient"
 _alert_cooldown: dict[str, float] = {}
 
 
-SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。
+SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。分析聊天记录状态并给出自然沟通建议。
 
-你的目标：
-帮助用户理解聊天状态，并给出自然沟通建议。
-
-输入格式说明：
-用户粘贴的聊天记录中，"他/她:" 或 "she/he:" 表示对方，"我:" 或 "me:" 表示用户自己。
-请基于此理解对话双方的角色关系。
+输入规则：对方用"他/她:"标注，用户自己用"我:"标注。
 
 分析重点：
-1. 互动积极程度
-2. 对方主动性
-3. 情绪反馈
-4. 潜在聊天问题
-5. 风险提醒
-6. 回复建议
+1. 互动积极程度 2. 对方主动性 3. 情绪反馈
+4. 潜在问题 5. 风险提醒 6. 回复建议
 
-禁止：
-• 判断喜欢程度
-• 编造事实
-• 情绪操控
-• PUA 风格
-• 极端两性观点
+禁止：判断喜欢程度、编造事实、情绪操控、PUA风格、极端两性观点
 
-回复必须：
-自然、现实、可执行。
+回复规则：不超过2句话，自然可直接发送，不油腻不刻意，禁止套路话术
 
-回复建议规则：
-- 每条回复不超过 2 句话
-- 自然、可直接复制发送
-- 不油腻、不尴尬
-- 禁止套路话术
-
-输出格式：
-严格 JSON，不要输出任何非 JSON 内容。"""
+严格输出JSON，不输出非JSON内容。"""
 
 # ── Relationship-specific prompt additions ──
 
 RELATIONSHIP_PROMPTS = {
     "romantic": """
-当前分析场景：恋爱/暧昧关系。
-
-额外关注：
-- 对方主动性和回复热情
-- 情绪氛围和暧昧程度
-- 聊天节奏是否合适
-- 回复是否自然、不刻意
-
-额外禁止：
-- 绝对判断（如"她/他喜欢你"）
-- 情感操控建议
-- 过度解读对方意图
+当前场景：恋爱/暧昧关系。
+额外关注：对方主动性和回复热情、情绪氛围、聊天节奏
+额外禁止：绝对判断（如"她/他喜欢你"）、情感操控、过度解读
 """,
     "friend": """
-当前分析场景：朋友关系。
-
-额外关注：
-- 情绪状态是否正常
-- 社交边界是否合适
-- 是否存在误解或冷场
-- 友谊维护建议
-
-额外禁止：
-- 恋爱化解读
-- 过度分析暧昧信号
+当前场景：朋友关系。
+额外关注：情绪状态、社交边界、误解或冷场
+额外禁止：恋爱化解读
 """,
     "family": """
-当前分析场景：家人关系。
-
-额外关注：
-- 情绪缓和与沟通方式
-- 表达是否清晰、不含攻击性
-- 冲突风险与降温建议
-- 家庭关系维护
-
-额外禁止：
-- 心理诊断
-- 立场偏袒
-- 煽动对抗
+当前场景：家人关系。
+额外关注：情绪缓和与沟通方式、表达清晰度、冲突风险
+额外禁止：心理诊断、立场偏袒、煽动对抗
 """,
     "coworker": """
-当前分析场景：同事/工作关系。
-
-额外关注：
-- 沟通专业度
-- 职场边界感
-- 信息是否清晰、得体
-- 潜在沟通风险（如误解、越界）
-
-额外禁止：
-- 情绪化建议
-- 鼓励非职业行为
-- 过度解读私人意图
+当前场景：同事/工作关系。
+额外关注：沟通专业度、职场边界、信息清晰度
+额外禁止：情绪化建议、鼓励非职业行为
 """,
     "other": """
-当前分析场景：通用关系。
-
-请以中立、客观的方式分析沟通状态和提供建议。
+当前场景：通用关系。请以中立客观方式分析。
 """,
 }
 
 
-SCREENSHOT_EXTRACT_PROMPT = """你是一个聊天截图文字提取助手。
-
-你的任务：
-从聊天截图（可能是微信、QQ 等即时通讯工具的截图）中提取所有可见的聊天消息。
+SCREENSHOT_EXTRACT_PROMPT = """你是一个聊天截图文字提取助手。从聊天截图中提取所有可见的聊天消息。
 
 要求：
-1. 按时间顺序逐条提取每条消息
-2. 区分不同发言人：对方用"他/她:"，用户自己用"我:"。如果你无法判断谁是用户，对方用"他/她:"，自己用"我:"标注
-3. 保留表情符号的文字描述（如 [笑哭]、[点赞]）
-4. 忽略系统提示消息（如"对方正在输入"、时间戳、撤回提示等）
-5. 仅输出聊天文字内容，不要输出任何其他说明
+1. 按时间顺序提取每条消息
+2. 区分发言人：对方用"他/她:"，用户自己用"我:"标注
+3. 保留表情符号文字描述（如 [笑哭]）
+4. 忽略系统提示（如"对方正在输入"、时间戳等）
+5. 仅输出聊天文字内容
 
 输出格式：
 他/她: 消息内容1
@@ -233,6 +171,7 @@ class DoubaoService:
         last_error = None
         for model in self.text_models:
             try:
+                t_api_start = time.time()
                 logger.info(f"Trying text model: {model}")
                 response = await self.client.chat.completions.create(
                     model=model,
@@ -244,11 +183,12 @@ class DoubaoService:
                     max_tokens=settings.MAX_TOKENS,
                 )
 
+                t_api_end = time.time()
                 content = response.choices[0].message.content
                 if not content:
                     raise ValueError("Model returned empty response")
 
-                logger.info(f"Text model {model} succeeded")
+                logger.info(f"Text model {model} succeeded in {(t_api_end - t_api_start):.1f}s, output tokens={len(content)}")
                 return self._parse_response(content)
 
             except Exception as e:
@@ -324,7 +264,7 @@ class DoubaoService:
 
     def _build_user_prompt(self, chat_content: str, relationship_type: str = "romantic") -> str:
         relationship_extra = RELATIONSHIP_PROMPTS.get(relationship_type, RELATIONSHIP_PROMPTS["other"])
-        return f"""请分析以下聊天记录。
+        return f"""分析以下聊天记录。
 
 {relationship_extra.strip()}
 
@@ -333,26 +273,21 @@ class DoubaoService:
 {chat_content}
 ---
 
-请以 JSON 格式输出分析结果。JSON schema 如下：
+以JSON格式输出：
 {{
   "chat_status": "积极互动 | 普通互动 | 礼貌回应 | 偏冷淡 | 对话风险较高",
-  "analysis": "互动分析描述，说明为什么这样判断（3~5 个理由）",
-  "issues": ["发现的聊天问题，如：提问密度过高、话题推进太快、自我输出不足等"],
-  "risks": ["风险提醒，如：当前不建议连续追问"],
+  "analysis": "互动分析，3~5个理由",
+  "issues": ["聊天问题，如：提问密度过高"],
+  "risks": ["风险提醒"],
   "reply_suggestions": {{
-    "natural": "自然版回复（最安全，不超过2句话）",
-    "humorous": "幽默版回复（轻松风格，不超过2句话）",
-    "mature": "成熟版回复（稳重有边界感，不超过2句话）"
+    "natural": "自然版回复（不超过2句话）",
+    "humorous": "幽默版回复（不超过2句话）",
+    "mature": "成熟版回复（不超过2句话）"
   }},
-  "timing_advice": "节奏建议，如：当前互动节奏正常，建议轻松延续话题，不建议突然升级关系"
+  "timing_advice": "节奏建议"
 }}
 
-注意事项：
-- chat_status 必须是枚举值之一
-- issues 和 risks 如果为空请返回空数组 []
-- 回复建议必须自然、可发送、不油腻
-- 禁止判断喜欢程度
-- 禁止使用 PUA 风格语言"""
+规则：chat_status必须是枚举值之一，issues/risks为空时返回[]，回复必须自然可发送，禁止判断喜欢程度和PUA语言。"""
 
     def _parse_response(self, raw_json: str) -> ChatAnalysisResponse:
         # 清理豆包可能输出的 markdown 代码块标记和前后多余文本
