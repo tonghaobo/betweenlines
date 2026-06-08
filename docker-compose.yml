@@ -2,7 +2,9 @@ services:
   betweenlines:
     image: betweenlines:latest
     container_name: betweenlines
-    network_mode: host
+    ports:
+      - "3000:3000"
+      - "8000:8000"
     environment:
       # ═══════════════════════════════════════
       # 必填：替换为你的豆包 API Key
@@ -11,8 +13,8 @@ services:
 
       # ── 可选配置（以下为默认值） ──
       - OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-      - TEXT_MODELS=doubao-seed-1-8-251228
-      - VISION_MODELS=doubao-seed-1-8-251228
+      - TEXT_MODELS=doubao-seed-1-8-251228,doubao-1-5-pro-32k-250115,doubao-seed-2-0-pro-260215,doubao-1-5-lite-32k-250115
+      - VISION_MODELS=doubao-1-5-vision-pro-32k-250115,doubao-seed-1-6-vision-250815
       - ALLOWED_ORIGINS=http://localhost:3000
       - TEMPERATURE=0.7
       - MAX_TOKENS=400
@@ -20,7 +22,9 @@ services:
       - VISION_MAX_TOKENS=2000
       - MAX_CHAT_LENGTH=2000
       - MIN_CHAT_LENGTH=10
-      - FREE_DAILY_LIMIT=3
+      - FREE_DAILY_LIMIT=10
+      - ENABLE_SHARE_REWARD=true
+      - MAX_SHARE_REWARDS_PER_DAY=1
 
     volumes:
       # SQLite 数据持久化

@@ -100,9 +100,6 @@ def grant_share_reward(anonymous_user_id: str, share_type: str, share_hash: str)
         return {"granted": False, "bonus_count": 0, "message": "Daily share reward limit reached"}
 
     # Check dedup by share_hash
-    with get_daily_usage(anonymous_user_id).__class__.__mro__[0]:  # no-op, just ensuring import
-        pass
-
     from app.services.storage import get_db_connection
     with get_db_connection() as conn:
         cursor = conn.cursor()
