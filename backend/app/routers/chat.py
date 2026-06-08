@@ -48,16 +48,12 @@ async def analyze_chat(
         )
 
     # ── Daily usage check via anonymous_user_id ──
-    # Skip usage check for screenshot-derived text (quota already consumed during extraction)
-    if request_body.source == "screenshot":
-        usage_result = {"allowed": True, "used": 0, "limit": 0, "detail": None}
-    else:
-        usage_result = check_and_increment_usage(request_body.anonymous_user_id, "analysis")
-        if not usage_result["allowed"]:
-            raise HTTPException(
-                status_code=429,
-                detail="daily_limit_reached",
-            )
+    usage_result = check_and_increment_usage(request_body.anonymous_user_id, "analysis")
+    if not usage_result["allowed"]:
+        raise HTTPException(
+            status_code=429,
+            detail="daily_limit_reached",
+        )
 
     start_time = time.time()
     chat_length = len(request_body.chat_content)
@@ -92,22 +88,21 @@ async def analyze_chat(
         from app.services.chat_normalizer import normalize_chat
         cleaned_content = normalize_chat(cleaned_content)
 
-        result = await service.analyze_chat(cleaned_content, request_body.relationship_type)
+        result = await service.analyze_chat(cleaned_content, request_body.relationship_type, request_body.language or "zh")
         chat_status_result = result.chat_status.value
 
         return result
 
     except HTTPException:
-        # If analysis failed, undo the usage increment (only for non-screenshot source)
-        if not error_msg and usage_result["allowed"] and request_body.source != "screenshot":
+        # Undo the usage increment on failure
+        if not error_msg and usage_result["allowed"]:
             _undo_usage_increment(request_body.anonymous_user_id, "analysis")
         raise
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Analysis error: {error_msg}", exc_info=True)
-        # Undo usage increment on failure (only for non-screenshot source)
-        if request_body.source != "screenshot":
-            _undo_usage_increment(request_body.anonymous_user_id, "analysis")
+        # Undo usage increment on failure
+        _undo_usage_increment(request_body.anonymous_user_id, "analysis")
         raise HTTPException(
             status_code=500,
             detail="分析失败，请稍后重试。",
@@ -142,7 +137,10 @@ async def analyze_screenshot(
     files: list[UploadFile] = File(...),
     service: DoubaoService = Depends(get_doubao_service),
 ):
-    """上传聊天截图（支持多张），提取文字并返回供用户确认"""
+    """上传聊天截图（支持多张），提取文字并返回供用户确认。
+    
+    Note: OCR extraction does NOT consume daily quota — only the final analysis step does.
+    """
     # ── Validate file count ──
     if len(files) > settings.MAX_SCREENSHOTS_PER_REQUEST:
         raise HTTPException(
@@ -150,20 +148,11 @@ async def analyze_screenshot(
             detail=f"单次最多上传 {settings.MAX_SCREENSHOTS_PER_REQUEST} 张截图，当前上传了 {len(files)} 张。",
         )
 
-    # ── Daily screenshot usage check ──
-    usage_result = check_and_increment_usage(anonymous_user_id, "screenshot")
-    if not usage_result["allowed"]:
-        raise HTTPException(
-            status_code=429,
-            detail="daily_limit_reached",
-        )
     start_time = time.time()
 
     # Validate each file
     for f in files:
         if f.content_type not in settings.ALLOWED_IMAGE_TYPES:
-            # Undo increment on validation failure
-            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(
                 status_code=400,
                 detail=f"不支持的文件格式：{f.content_type}。请上传 PNG、JPEG 或 WebP 格式的图片。",
@@ -175,13 +164,11 @@ async def analyze_screenshot(
     for f in files:
         image_bytes = await f.read()
         if len(image_bytes) > settings.MAX_SCREENSHOT_SIZE:
-            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(
                 status_code=400,
                 detail=f"图片过大（{len(image_bytes) / 1024 / 1024:.1f}MB），请上传不超过 10MB 的图片。",
             )
         if len(image_bytes) == 0:
-            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(status_code=400, detail="上传的图片为空，请重新选择。")
         total_size += len(image_bytes)
         file_data.append((image_bytes, f.content_type))
@@ -198,7 +185,6 @@ async def analyze_screenshot(
                 logger.warning(f"Screenshot {i + 1}: insufficient text extracted")
 
         if not extracted_parts:
-            _undo_usage_increment(anonymous_user_id, "analysis")
             raise HTTPException(
                 status_code=400,
                 detail="未能从图片中提取到足够的聊天文字。请确保截图包含清晰的聊天消息。",
@@ -216,7 +202,6 @@ async def analyze_screenshot(
         raise
     except Exception as e:
         logger.error(f"Screenshot analysis error: {str(e)}", exc_info=True)
-        _undo_usage_increment(anonymous_user_id, "analysis")
         raise HTTPException(
             status_code=500,
             detail="截图分析失败，请稍后重试。",

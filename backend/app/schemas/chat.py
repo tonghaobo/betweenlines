@@ -41,6 +41,10 @@ class ChatAnalysisRequest(BaseModel):
         None,
         description="来源标识：'screenshot' 表示截图提取的文字，此时不消耗文字分析配额",
     )
+    language: Optional[str] = Field(
+        "zh",
+        description="输出语言：'zh' 中文 / 'en' 英文",
+    )
 
 
 class ScreenshotAnalysisResponse(BaseModel):

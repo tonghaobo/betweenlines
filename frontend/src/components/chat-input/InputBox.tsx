@@ -143,6 +143,8 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
   // ── Global paste listener (for when focus is not on textarea) ──
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
+      // Skip if already handled by React onPaste (textarea) — avoids double OCR
+      if (e.defaultPrevented) return;
       const items = e.clipboardData?.items;
       if (!items) return;
       const imageFiles: File[] = [];

@@ -18,7 +18,7 @@ _QUOTA_ERROR_SUBSTRINGS = ["quota", "rate_limit", "ModelNotOpen", "insufficient"
 _alert_cooldown: dict[str, float] = {}
 
 
-SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。分析聊天记录状态并给出自然沟通建议。
+SYSTEM_PROMPT_ZH = """你是一个专业的社交沟通分析助手。分析聊天记录状态并给出自然沟通建议。
 
 输入规则：对方用"他/她:"标注，用户自己用"我:"标注。
 
@@ -31,6 +31,20 @@ SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。分析聊天�
 回复规则：不超过2句话，自然可直接发送，不油腻不刻意，禁止套路话术
 
 严格输出JSON，不输出非JSON内容。"""
+
+SYSTEM_PROMPT_EN = """You are a professional social communication analysis assistant. Analyze chat records and provide natural communication advice.
+
+Input rules: The other party is marked with "he/she:", the user is marked with "me:".
+
+Analysis focus:
+1. Engagement level 2. Other party's initiative 3. Emotional feedback
+4. Potential issues 5. Risk warnings 6. Reply suggestions
+
+Prohibited: Judging whether someone likes you, fabricating facts, emotional manipulation, PUA-style, extreme views
+
+Reply rules: No more than 2 sentences, natural and sendable, not awkward or forced, no routines or pickup tactics
+
+Output strictly as JSON, no non-JSON content."""
 
 # ── Relationship-specific prompt additions ──
 
@@ -164,19 +178,20 @@ class DoubaoService:
         # Default: plain JSON
         return {"title": title, "detail": detail}
 
-    async def analyze_chat(self, chat_content: str, relationship_type: str = "romantic") -> ChatAnalysisResponse:
+    async def analyze_chat(self, chat_content: str, relationship_type: str = "romantic", language: str = "zh") -> ChatAnalysisResponse:
         from app.core.config import settings
-        user_prompt = self._build_user_prompt(chat_content, relationship_type)
+        system_prompt = SYSTEM_PROMPT_EN if language == "en" else SYSTEM_PROMPT_ZH
+        user_prompt = self._build_user_prompt(chat_content, relationship_type, language)
 
         last_error = None
         for model in self.text_models:
             try:
                 t_api_start = time.time()
-                logger.info(f"Trying text model: {model}")
+                logger.info(f"Trying text model: {model} (lang={language})")
                 response = await self.client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
                     temperature=settings.TEMPERATURE,
@@ -189,7 +204,7 @@ class DoubaoService:
                     raise ValueError("Model returned empty response")
 
                 logger.info(f"Text model {model} succeeded in {(t_api_end - t_api_start):.1f}s, output tokens={len(content)}")
-                return self._parse_response(content)
+                return self._parse_response(content, language)
 
             except Exception as e:
                 last_error = e
@@ -262,8 +277,33 @@ class DoubaoService:
         await self._send_alert("视觉", self.vision_models, str(last_error))
         raise last_error
 
-    def _build_user_prompt(self, chat_content: str, relationship_type: str = "romantic") -> str:
+    def _build_user_prompt(self, chat_content: str, relationship_type: str = "romantic", language: str = "zh") -> str:
         relationship_extra = RELATIONSHIP_PROMPTS.get(relationship_type, RELATIONSHIP_PROMPTS["other"])
+        if language == "en":
+            return f"""Analyze the following chat conversation.
+
+{relationship_extra.strip()}
+
+Chat content:
+---
+{chat_content}
+---
+
+Output as JSON:
+{{
+  "chat_status": "engaged | normal | polite | cold | high risk",
+  "analysis": "Analysis with 3-5 reasons",
+  "issues": ["Issues found, e.g.: asking too many questions"],
+  "risks": ["Risk warnings"],
+  "reply_suggestions": {{
+    "natural": "Natural reply (max 2 sentences)",
+    "humorous": "Humorous reply (max 2 sentences)",
+    "mature": "Mature reply (max 2 sentences)"
+  }},
+  "timing_advice": "Timing advice"
+}}
+
+Rules: chat_status must be one of the enum values, issues/risks return [] if empty, replies must be natural and sendable, do NOT judge feelings or use PUA language."""
         return f"""分析以下聊天记录。
 
 {relationship_extra.strip()}
@@ -289,11 +329,10 @@ class DoubaoService:
 
 规则：chat_status必须是枚举值之一，issues/risks为空时返回[]，回复必须自然可发送，禁止判断喜欢程度和PUA语言。"""
 
-    def _parse_response(self, raw_json: str) -> ChatAnalysisResponse:
-        # 清理豆包可能输出的 markdown 代码块标记和前后多余文本
+    def _parse_response(self, raw_json: str, language: str = "zh") -> ChatAnalysisResponse:
+        # Clean markdown code block wrappers
         cleaned = raw_json.strip()
         if cleaned.startswith("```"):
-            # 去除 ```json 或 ``` 开头
             first_newline = cleaned.find("\n")
             if first_newline != -1:
                 cleaned = cleaned[first_newline + 1:]
@@ -306,25 +345,42 @@ class DoubaoService:
             logger.error(f"Failed to parse Doubao JSON response: {raw_json[:200]}")
             raise ValueError(f"Invalid JSON from Doubao: {str(e)}")
 
-        status_map = {
+        status_map_zh = {
             "积极互动": ChatStatus.POSITIVE,
             "普通互动": ChatStatus.NORMAL,
             "礼貌回应": ChatStatus.POLITE,
             "偏冷淡": ChatStatus.COLD,
             "对话风险较高": ChatStatus.HIGH_RISK,
         }
+        status_map_en = {
+            "engaged": ChatStatus.POSITIVE,
+            "normal": ChatStatus.NORMAL,
+            "polite": ChatStatus.POLITE,
+            "cold": ChatStatus.COLD,
+            "high risk": ChatStatus.HIGH_RISK,
+        }
+        status_map = {**status_map_zh, **status_map_en}
 
-        raw_status = data.get("chat_status", "普通互动")
-        chat_status = status_map.get(raw_status)
+        raw_status = data.get("chat_status", "普通互动" if language == "zh" else "normal")
+        chat_status = status_map.get(raw_status.strip().lower() if language == "en" else raw_status.strip())
         if chat_status is None:
             logger.warning(f"Unknown chat_status '{raw_status}', defaulting to NORMAL")
             chat_status = ChatStatus.NORMAL
 
         suggestions = data.get("reply_suggestions", {})
+        default_fallbacks = {
+            "natural": "Keep the conversation going naturally.",
+            "humorous": "Respond in a light-hearted way.",
+            "mature": "Maintain a composed and respectful tone.",
+        } if language == "en" else {
+            "natural": "可以自然地继续聊天。",
+            "humorous": "用轻松的方式回应。",
+            "mature": "保持稳重得体的交流。",
+        }
         reply_suggestions = ReplySuggestions(
-            natural=suggestions.get("natural", "可以自然地继续聊天。"),
-            humorous=suggestions.get("humorous", "用轻松的方式回应。"),
-            mature=suggestions.get("mature", "保持稳重得体的交流。"),
+            natural=suggestions.get("natural", default_fallbacks["natural"]),
+            humorous=suggestions.get("humorous", default_fallbacks["humorous"]),
+            mature=suggestions.get("mature", default_fallbacks["mature"]),
         )
 
         return ChatAnalysisResponse(

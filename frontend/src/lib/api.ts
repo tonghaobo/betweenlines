@@ -121,12 +121,14 @@ export async function analyzeChat(
   relationshipType: RelationshipType = "romantic",
   anonymousUserId: string,
   source?: string,
+  language?: string,
 ): Promise<ChatAnalysisResponse> {
   return retryableRequest(async () => {
     const body: Record<string, unknown> = {
       chat_content: chatContent,
       relationship_type: relationshipType,
       anonymous_user_id: anonymousUserId,
+      language: language || "zh",
     };
     if (source) body.source = source;
 

@@ -17,7 +17,7 @@ import { track, getAnalyticsUserId } from "@/lib/analytics";
 import type { RelationshipType } from "@/lib/api";
 
 export default function Home() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { result, isLoading, error, errorType, limitReached, analyze, reset } = useChatAnalysis();
   const resultRef = useRef<HTMLDivElement>(null);
   const hasTrackedPageView = useRef(false);
@@ -54,7 +54,7 @@ export default function Home() {
 
   const handleSubmit = (text: string, relationshipType: RelationshipType, source?: string) => {
     setLastRelationshipType(relationshipType);
-    analyze(text, relationshipType, source);
+    analyze(text, relationshipType, source, locale);
   };
 
   // Loading state

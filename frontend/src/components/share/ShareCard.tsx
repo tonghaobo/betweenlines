@@ -41,14 +41,6 @@ const vibeText: Record<string, string> = {
   positive: "text-emerald-700",
 };
 
-/** Fun tags based on status */
-const funTags: Record<string, string[]> = {
-  cold: ["一块正在冷却的暖宝宝 🧊", "读完就想去喝热水 😅", "气氛需要个小火炉 🔥"],
-  normal: ["一杯温开水 🥛", "理工男在做需求评审 😭", "两个人在等对方先说话 🤫"],
-  warm: ["小火慢炖中 🍲", "对方在偷偷查你朋友圈 👀", "空气中有点甜 🍬"],
-  positive: ["甜度超标 🍯", "对方手机不离手就等你的消息 📱", "双向奔赴本人 🏃"],
-};
-
 interface ShareCardProps {
   data: ChatAnalysisResponse;
   relationshipType: RelationshipType;
@@ -61,7 +53,7 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
     const vibe = statusToVibe[data.chat_status] || "normal";
 
     // Pick a fun tag (deterministic based on status hash)
-    const tags = funTags[vibe] || funTags.normal;
+    const tags = t.share.funTags[vibe] || t.share.funTags.normal;
     const tagIndex = data.analysis.length % tags.length;
     const funTag = tags[tagIndex];
 

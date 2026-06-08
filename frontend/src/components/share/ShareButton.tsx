@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toBlob } from "html-to-image";
 import { useI18n } from "@/contexts/I18nContext";
 import { ShareCard } from "./ShareCard";
@@ -50,6 +50,7 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string>("");
   const [previewPlatform, setPreviewPlatform] = useState<string>("");
+  const [rewardToast, setRewardToast] = useState<{ show: boolean; message: string; bonus: number }>({ show: false, message: "", bonus: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleOpen = () => {
@@ -57,6 +58,7 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
     setShowCard(true);
     setShareStatus("idle");
     setRewardMsg(null);
+    setRewardToast({ show: false, message: "", bonus: 0 });
     setActivePlatform("");
     setLastPlatform("");
     setLastShareMethod(null);
@@ -215,15 +217,27 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
 
       if (result.granted) {
         track("share_reward_granted", { share_type: shareType });
-        setRewardMsg(t.share.rewardGranted);
+        setRewardToast({ show: true, message: t.share.rewardGranted, bonus: result.bonus_count });
       } else if (result.message.includes("limit")) {
         track("share_reward_limit_hit", {});
-        setRewardMsg(t.share.rewardLimitHit);
+        setRewardToast({ show: true, message: t.share.rewardLimitHit, bonus: 0 });
+      } else if (result.message.includes("Already")) {
+        // Already rewarded for this share — silent
+      } else {
+        // Other non-granted cases (e.g. feature not enabled)
+        console.warn("Share reward not granted:", result.message);
       }
     } catch {
       // Silent — reward is optional
     }
   };
+
+  // Auto-dismiss reward toast after 3.5s
+  useEffect(() => {
+    if (!rewardToast.show) return;
+    const timer = setTimeout(() => setRewardToast({ show: false, message: "", bonus: 0 }), 3500);
+    return () => clearTimeout(timer);
+  }, [rewardToast.show]);
 
   // Status message for user feedback
   const getStatusMessage = (): string | null => {
@@ -376,11 +390,19 @@ export function ShareButton({ data, relationshipType }: ShareButtonProps) {
         </p>
       )}
 
-      {/* Reward message */}
-      {rewardMsg && (
-        <p className="text-xs text-center text-emerald-600 font-medium">
-          {rewardMsg}
-        </p>
+      {/* Reward toast notification */}
+      {rewardToast.show && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-slide-down pointer-events-none">
+          <div className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-xl shadow-lg">
+            <span className="text-lg">🎉</span>
+            <div>
+              <p className="text-sm font-semibold">{rewardToast.message}</p>
+              {rewardToast.bonus > 0 && (
+                <p className="text-xs text-emerald-200">{t.share.rewardHint}</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Preview modal: shown when clipboard copy fails, user needs manual copy */}

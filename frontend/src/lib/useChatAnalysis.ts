@@ -24,7 +24,7 @@ export function useChatAnalysis() {
     limitReached: false,
   });
 
-  const analyze = useCallback(async (chatContent: string, relationshipType: RelationshipType = "romantic", source?: string) => {
+  const analyze = useCallback(async (chatContent: string, relationshipType: RelationshipType = "romantic", source?: string, language?: string) => {
     setState({ result: null, isLoading: true, error: null, errorType: null, limitReached: false });
 
     // Track analysis_created
@@ -34,7 +34,7 @@ export function useChatAnalysis() {
 
     try {
       const anonymousUserId = getAnalyticsUserId();
-      const result = await analyzeChat(chatContent, relationshipType, anonymousUserId, source);
+      const result = await analyzeChat(chatContent, relationshipType, anonymousUserId, source, language);
       
       // Track analysis_success + reply_generated
       const durationMs = Date.now() - startTime;
