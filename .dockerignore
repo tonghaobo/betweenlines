@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+backend/.venv/
+
+# Build outputs
+frontend/.next/
+
+# Environment files (will be generated at runtime)
+backend/.env
+frontend/.env.local
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (mounted as volume)
+backend/data/
+
+# Docs & plans
+docs/
+plans/
+
+# Misc
+*.md
+!README.md
+.codebuddy/

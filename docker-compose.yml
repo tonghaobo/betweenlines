@@ -1,0 +1,29 @@
+services:
+  betweenlines:
+    image: betweenlines:latest
+    container_name: betweenlines
+    network_mode: host
+    environment:
+      # ═══════════════════════════════════════
+      # 必填：替换为你的豆包 API Key
+      # ═══════════════════════════════════════
+      - OPENAI_API_KEY=ark-aff81418-ea3e-4805-bcb5-739e21e5b73e-733bf
+
+      # ── 可选配置（以下为默认值） ──
+      - OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+      - TEXT_MODELS=doubao-seed-1-8-251228
+      - VISION_MODELS=doubao-seed-1-8-251228
+      - ALLOWED_ORIGINS=http://localhost:3000
+      - TEMPERATURE=0.7
+      - MAX_TOKENS=400
+      - VISION_TEMPERATURE=0.3
+      - VISION_MAX_TOKENS=2000
+      - MAX_CHAT_LENGTH=2000
+      - MIN_CHAT_LENGTH=10
+      - FREE_DAILY_LIMIT=3
+
+    volumes:
+      # SQLite 数据持久化
+      - ./data:/app/backend/data
+
+    restart: unless-stopped
