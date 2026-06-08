@@ -118,7 +118,7 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const maxDim = 2048;
+        const maxDim = 1280;
         let { width, height } = img;
         if (width > maxDim || height > maxDim) {
           const ratio = Math.min(maxDim / width, maxDim / height);
@@ -137,7 +137,7 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
             resolve(new File([blob], file.name, { type: "image/jpeg", lastModified: file.lastModified }));
           },
           "image/jpeg",
-          0.7,
+          0.6,
         );
       };
       img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };

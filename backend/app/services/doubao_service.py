@@ -221,7 +221,10 @@ class DoubaoService:
     async def extract_text_from_screenshot(self, image_bytes: bytes, content_type: str = "image/png") -> str:
         """使用多模态模型从聊天截图中提取文字，支持多模型自动切换"""
         from app.core.config import settings
+        t_encode_start = time.time()
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        t_encode = time.time() - t_encode_start
+        logger.info(f"Vision encode base64: {len(image_bytes)}B → {len(image_base64)} chars in {t_encode:.2f}s")
 
         # 根据 content_type 确定 MIME 类型，默认 image/png
         mime_type = content_type if content_type in (
@@ -234,6 +237,7 @@ class DoubaoService:
             # Retry up to 2 times per model for transient errors
             for attempt in range(3):
                 try:
+                    t_api_start = time.time()
                     response = await self.client.chat.completions.create(
                         model=model,
                         messages=[
@@ -255,11 +259,12 @@ class DoubaoService:
                         max_tokens=settings.VISION_MAX_TOKENS,
                     )
 
+                    t_api = time.time() - t_api_start
                     content = response.choices[0].message.content
                     if not content:
                         raise ValueError("Vision model returned empty response")
 
-                    logger.info(f"Vision model {model} succeeded on attempt {attempt + 1}")
+                    logger.info(f"Vision model {model} succeeded on attempt {attempt + 1} in {t_api:.1f}s, output={len(content)} chars")
                     return content.strip()
 
                 except Exception as e:

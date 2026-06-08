@@ -80,7 +80,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
       img.onload = () => {
         URL.revokeObjectURL(url);
         let { width, height } = img;
-        const maxDim = 2048;
+        const maxDim = 1280;
         if (width > maxDim || height > maxDim) {
           const ratio = Math.min(maxDim / width, maxDim / height);
           width = Math.round(width * ratio);
@@ -94,7 +94,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
         ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(
           (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg", lastModified: file.lastModified }) : file),
-          "image/jpeg", 0.7,
+          "image/jpeg", 0.6,
         );
       };
       img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
