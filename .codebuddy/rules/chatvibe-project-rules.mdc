@@ -352,13 +352,31 @@ docs/
 └── 05-troubleshooting/   # 问题排查
 ```
 
-## 更新规则
+## 更新规则（强制 — 提交前检查）
 
-- 代码变更必须同步更新对应文档：
-  - 新增/修改 API → 更新 `04-backend/README.md`
-  - 新增/修改组件 → 更新 `03-frontend/README.md`
-  - 新增/修改数据库表 → 更新 `01-architecture.md` + `04-backend/README.md`
-  - 新增功能 → 更新 `00-overview.md`
+**每次代码改动必须在提交前同步更新对应文档**，作为 commit 的一部分一起提交，不允许"稍后再补文档"。
+
+**提交前检查流程**：
+1. 完成代码修改
+2. 根据下方映射表检查是否需要更新文档
+3. 更新对应文档（如需要）
+4. 将代码 + 文档一起 `git add` + `git commit`
+
+**代码改动 → 文档映射**：
+
+- 新增/修改 API 端点 → 更新 `04-backend/README.md`
+- 新增/修改前端组件 → 更新 `03-frontend/README.md`
+- 新增/修改数据库表 → 更新 `01-architecture.md` + `04-backend/README.md`
+- 新增/修改环境变量或启动配置 → 更新 `01-setup/本地启动指南.md`
+- 新增功能 → 更新 `00-overview.md`
+- 新增部署方式（如 Docker）→ 在 `01-setup/` 下新建对应文档（如 `容器部署指南.md`）
+- 修复已知问题 → 更新 `05-troubleshooting/README.md`
+
+**新板块无对应文档时**：
+- 如果改动涉及全新领域（如 Docker 部署、CI/CD、监控告警等），在 `docs/` 下新建子目录和 README
+- 新增文档后，同步更新 `00-project-context/README.md` 的文档索引
+
+**格式要求**：
 - 文档用中文，代码注释用英文
 - 不在项目根目录放散落文档，统一归入 `docs/`
 - 不提交 PDF 文档

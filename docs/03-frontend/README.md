@@ -53,7 +53,7 @@ frontend/src/
 │       └── UsageLimitModal.tsx  # 配额耗尽弹窗
 ├── lib/                    # 工具库
 │   ├── api.ts              # API 调用层 (超时/重试/错误处理)
-│   ├── useChatAnalysis.ts  # 分析状态管理 Hook
+│   ├── useChatAnalysis.ts  # 分析状态管理 Hook (含 sessionStorage 持久化)
 │   ├── analytics.ts        # 埋点 SDK (匿名ID + 事件上报)
 │   └── cache.ts            # 客户端缓存
 ├── contexts/               # React Context
@@ -159,6 +159,17 @@ frontend/src/
 - `analyze(content)` → 触发分析
 - `reset()` → 回到首页
 
+**sessionStorage 持久化（V1.2）**：
+- 分析成功后自动保存到 `sessionStorage`（30 分钟 TTL）
+- 刷新页面时自动恢复结果，无需重新分析
+- OCR 文字也持久化到 `sessionStorage`，刷新不丢
+
+### 截图上传计数
+
+- 使用 `screenshotCountRef`（useRef）保证异步 OCR 中计数的正确性
+- 累计计数持久化到 `sessionStorage`，刷新后接续计数
+- 后端 + 前端双重限制（`MAX_SCREENSHOTS_PER_REQUEST`）
+
 ### I18nContext
 
 - `locale`: `"en" | "zh"`
@@ -193,6 +204,11 @@ frontend/src/
 - 429 → 不重试（限流）
 - 超时 → 提示"请求超时"
 - 网络错误 → 提示"网络错误"
+
+**`analytics.ts` 请求路径**：
+- 研发模式 API_BASE_URL 为空（走 Next.js rewrite，同源无 CORS）
+- 生产模式通过 `NEXT_PUBLIC_API_URL` 直连 Railway 后端
+- 请求失败无声降级，不影响用户体验
 
 ---
 

@@ -92,3 +92,23 @@ python -c "from app.core.config import settings; print(settings.OPENAI_API_KEY[:
 2. 确认前端 API 配置：`NEXT_PUBLIC_API_URL` 指向正确的后端地址
 3. 开发模式下，Next.js rewrite 将 `/api/` 代理到 `localhost:8000`
 4. 检查后端 `ALLOWED_ORIGINS` CORS 配置
+
+---
+
+### 8. 后端日志出现 `OPTIONS /api/v1/track 400 Bad Request`
+
+**现象**：后端频繁收到 OPTIONS 预检请求并返回 400。
+
+**根因**：`analytics.ts` 的 `API_BASE_URL` 默认值为 `http://localhost:8000`，绕过 Next.js rewrite 直连后端，触发浏览器 CORS 预检。
+
+**解决方案**：已修复 — `analytics.ts` 的 `API_BASE_URL` 改为空字符串（和 `api.ts` 一致），开发模式走 rewrite 同源代理。另外 `main.py` 的 CORS 中间件调整到最外层注册顺序。
+
+---
+
+### 9. Railway 部署后 502 Bad Gateway
+
+**现象**：Railway 容器正常启动，但访问返回 502。
+
+**根因**：Railway 通过 `PORT` 环境变量指定路由端口，但 `entrypoint.sh` 硬编码了 8000/3000，未读取 `PORT`。
+
+**解决方案**：`entrypoint.sh` 已修复 — 后端监听 `${PORT:-8000}`，Railway 上只启动后端（前端在 Vercel）。需在 Railway 清除构建缓存后重新部署。

@@ -47,6 +47,17 @@ async def analyze_chat(
             detail=f"Invalid relationship_type. Must be one of: {', '.join(VALID_RELATIONSHIP_TYPES)}",
         )
 
+    # ── Content-hash cache check (prevents re-analyzing same content on refresh) ──
+    from app.services.cache import get_cached_result, set_cached_result
+    cached = get_cached_result(
+        request_body.chat_content,
+        request_body.anonymous_user_id,
+        request_body.relationship_type,
+    )
+    if cached is not None:
+        logger.info(f"Returning cached result for {request_body.anonymous_user_id[:12]}...")
+        return ChatAnalysisResponse(**cached)
+
     # ── Daily usage check via anonymous_user_id ──
     usage_result = check_and_increment_usage(request_body.anonymous_user_id, "analysis")
     if not usage_result["allowed"]:
@@ -90,6 +101,14 @@ async def analyze_chat(
 
         result = await service.analyze_chat(cleaned_content, request_body.relationship_type, request_body.language or "zh")
         chat_status_result = result.chat_status.value
+
+        # Cache result to prevent re-analyzing same content on refresh
+        set_cached_result(
+            request_body.chat_content,
+            request_body.anonymous_user_id,
+            request_body.relationship_type,
+            result.model_dump(),
+        )
 
         return result
 

@@ -26,8 +26,28 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
   // Image extraction state
   const [dragOver, setDragOver] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = sessionStorage.getItem("betweenlines_ocr_text");
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (Date.now() - data.timestamp < 30 * 60 * 1000) return data.text;
+      }
+    } catch { /* ok */ }
+    return null;
+  });
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const [screenshotCount, setScreenshotCount] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const saved = sessionStorage.getItem("betweenlines_ocr_count");
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch { return 0; }
+  });
+  // Ref always holds the latest value, avoiding stale closure in async processScreenshots
+  const screenshotCountRef = useRef(screenshotCount);
+  useEffect(() => { screenshotCountRef.current = screenshotCount; }, [screenshotCount]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Usage tracking
@@ -103,7 +123,14 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
   };
 
   // ── OCR processing ──
+  const MAX_SCREENSHOTS = usage?.max_screenshots_per_request ?? 3;
+
   const processScreenshots = async (files: File[]) => {
+    // Check cumulative total (use ref for latest value, avoids stale closure)
+    if (screenshotCountRef.current + files.length > MAX_SCREENSHOTS) {
+      setScreenshotError(t.chatInput.maxScreenshotsError.replace("{max}", String(MAX_SCREENSHOTS)));
+      return;
+    }
     setScreenshotError(null);
     setExtracting(true);
     track("image_analysis_started", { file_count: files.length });
@@ -112,7 +139,20 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
       const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
       const compressed = await Promise.all(sorted.map(compressImage));
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, getAnalyticsUserId());
-      setExtractedText((prev) => prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text);
+
+      // Use callback forms to ensure we always operate on latest state
+      setExtractedText(prev => {
+        const merged = prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text;
+        try {
+          sessionStorage.setItem("betweenlines_ocr_text", JSON.stringify({ text: merged, timestamp: Date.now() }));
+        } catch { /* ok */ }
+        return merged;
+      });
+      setScreenshotCount(prev => {
+        const newCount = prev + sorted.length;
+        try { sessionStorage.setItem("betweenlines_ocr_count", String(newCount)); } catch { /* ok */ }
+        return newCount;
+      });
       refreshUsage();
     } catch (err) {
       setScreenshotError(err instanceof Error ? err.message : "OCR failed");
@@ -177,11 +217,16 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
 
   // ── Extracted text handlers ──
   const handleConfirmExtracted = () => {
-    if (extractedText && !isLoading) onSubmit(extractedText.trim(), relationshipType);
+    if (extractedText && !isLoading) {
+      try { sessionStorage.removeItem("betweenlines_ocr_text"); sessionStorage.removeItem("betweenlines_ocr_count"); } catch { /* ok */ }
+      onSubmit(extractedText.trim(), relationshipType);
+    }
   };
   const handleCancelExtract = () => {
     setExtractedText(null);
     setScreenshotError(null);
+    setScreenshotCount(0);
+    try { sessionStorage.removeItem("betweenlines_ocr_text"); sessionStorage.removeItem("betweenlines_ocr_count"); } catch { /* ok */ }
   };
   // ── Render ──
   const showDropZone = !extractedText && !extracting;

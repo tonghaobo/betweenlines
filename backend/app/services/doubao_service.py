@@ -18,60 +18,28 @@ _QUOTA_ERROR_SUBSTRINGS = ["quota", "rate_limit", "ModelNotOpen", "insufficient"
 _alert_cooldown: dict[str, float] = {}
 
 
-SYSTEM_PROMPT_ZH = """你是一个专业的社交沟通分析助手。分析聊天记录状态并给出自然沟通建议。
+SYSTEM_PROMPT_ZH = """你是社交沟通分析助手。分析聊天氛围并给回复建议。
+对方用"他/她:"，用户用"我:"。
+分析：1.互动度 2.对方主动性 3.情绪反馈 4.问题 5.风险
+禁止：判断喜欢、编造、情感操控、PUA
+回复≤2句，自然可发送。
+只输出JSON。"""
 
-输入规则：对方用"他/她:"标注，用户自己用"我:"标注。
-
-分析重点：
-1. 互动积极程度 2. 对方主动性 3. 情绪反馈
-4. 潜在问题 5. 风险提醒 6. 回复建议
-
-禁止：判断喜欢程度、编造事实、情绪操控、PUA风格、极端两性观点
-
-回复规则：不超过2句话，自然可直接发送，不油腻不刻意，禁止套路话术
-
-严格输出JSON，不输出非JSON内容。"""
-
-SYSTEM_PROMPT_EN = """You are a professional social communication analysis assistant. Analyze chat records and provide natural communication advice.
-
-Input rules: The other party is marked with "he/she:", the user is marked with "me:".
-
-Analysis focus:
-1. Engagement level 2. Other party's initiative 3. Emotional feedback
-4. Potential issues 5. Risk warnings 6. Reply suggestions
-
-Prohibited: Judging whether someone likes you, fabricating facts, emotional manipulation, PUA-style, extreme views
-
-Reply rules: No more than 2 sentences, natural and sendable, not awkward or forced, no routines or pickup tactics
-
-Output strictly as JSON, no non-JSON content."""
+SYSTEM_PROMPT_EN = """You are a social communication analyst. Analyze chat vibes and suggest replies.
+Other party: "he/she:", user: "me:".
+Analyze: 1.engagement 2.initiative 3.emotion 4.issues 5.risks
+Prohibited: judging feelings, fabrication, manipulation, PUA
+Reply: ≤2 sentences, natural, sendable.
+Output JSON only."""
 
 # ── Relationship-specific prompt additions ──
 
 RELATIONSHIP_PROMPTS = {
-    "romantic": """
-当前场景：恋爱/暧昧关系。
-额外关注：对方主动性和回复热情、情绪氛围、聊天节奏
-额外禁止：绝对判断（如"她/他喜欢你"）、情感操控、过度解读
-""",
-    "friend": """
-当前场景：朋友关系。
-额外关注：情绪状态、社交边界、误解或冷场
-额外禁止：恋爱化解读
-""",
-    "family": """
-当前场景：家人关系。
-额外关注：情绪缓和与沟通方式、表达清晰度、冲突风险
-额外禁止：心理诊断、立场偏袒、煽动对抗
-""",
-    "coworker": """
-当前场景：同事/工作关系。
-额外关注：沟通专业度、职场边界、信息清晰度
-额外禁止：情绪化建议、鼓励非职业行为
-""",
-    "other": """
-当前场景：通用关系。请以中立客观方式分析。
-""",
+    "romantic": "场景：恋爱/暧昧。关注：主动性、情绪氛围、节奏。禁止：绝对判断、情感操控。",
+    "friend": "场景：朋友。关注：情绪、社交边界、冷场。禁止：恋爱化解读。",
+    "family": "场景：家人。关注：沟通方式、冲突风险。禁止：心理诊断、立场偏袒。",
+    "coworker": "场景：同事/工作。关注：专业度、职场边界。禁止：情绪化建议、非职业行为。",
+    "other": "场景：通用关系。中立客观分析。",
 }
 
 
@@ -285,54 +253,28 @@ class DoubaoService:
     def _build_user_prompt(self, chat_content: str, relationship_type: str = "romantic", language: str = "zh") -> str:
         relationship_extra = RELATIONSHIP_PROMPTS.get(relationship_type, RELATIONSHIP_PROMPTS["other"])
         if language == "en":
-            return f"""Analyze the following chat conversation.
+            return f"""{relationship_extra}
 
-{relationship_extra.strip()}
-
-Chat content:
+Chat:
 ---
 {chat_content}
 ---
 
-Output as JSON:
-{{
-  "chat_status": "engaged | normal | polite | cold | high risk",
-  "analysis": "Analysis with 3-5 reasons",
-  "issues": ["Issues found, e.g.: asking too many questions"],
-  "risks": ["Risk warnings"],
-  "reply_suggestions": {{
-    "natural": "Natural reply (max 2 sentences)",
-    "humorous": "Humorous reply (max 2 sentences)",
-    "mature": "Mature reply (max 2 sentences)"
-  }},
-  "timing_advice": "Timing advice"
-}}
+Output JSON (no markdown):
+{{"chat_status":"engaged|normal|polite|cold|high risk","analysis":"3-5 reasons","issues":[],"risks":[],"reply_suggestions":{{"natural":"reply","humorous":"reply","mature":"reply"}},"timing_advice":"advice"}}
 
-Rules: chat_status must be one of the enum values, issues/risks return [] if empty, replies must be natural and sendable, do NOT judge feelings or use PUA language."""
-        return f"""分析以下聊天记录。
+Rules: pick one chat_status, empty issues/risks=[], replies ≤2 sentences natural. No judging feelings/PUA."""
+        return f"""{relationship_extra}
 
-{relationship_extra.strip()}
-
-聊天内容：
+聊天：
 ---
 {chat_content}
 ---
 
-以JSON格式输出：
-{{
-  "chat_status": "积极互动 | 普通互动 | 礼貌回应 | 偏冷淡 | 对话风险较高",
-  "analysis": "互动分析，3~5个理由",
-  "issues": ["聊天问题，如：提问密度过高"],
-  "risks": ["风险提醒"],
-  "reply_suggestions": {{
-    "natural": "自然版回复（不超过2句话）",
-    "humorous": "幽默版回复（不超过2句话）",
-    "mature": "成熟版回复（不超过2句话）"
-  }},
-  "timing_advice": "节奏建议"
-}}
+输出JSON(不要markdown包裹):
+{{"chat_status":"积极互动|普通互动|礼貌回应|偏冷淡|对话风险较高","analysis":"分析","issues":[],"risks":[],"reply_suggestions":{{"natural":"回复","humorous":"回复","mature":"回复"}},"timing_advice":"建议"}}
 
-规则：chat_status必须是枚举值之一，issues/risks为空时返回[]，回复必须自然可发送，禁止判断喜欢程度和PUA语言。"""
+要求：必须选一个chat_status，issues/risks空则[]，回复≤2句话自然可发送。禁止判断喜欢/PUA。"""
 
     def _parse_response(self, raw_json: str, language: str = "zh") -> ChatAnalysisResponse:
         # Clean markdown code block wrappers

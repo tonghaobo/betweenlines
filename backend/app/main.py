@@ -44,6 +44,15 @@ app = FastAPI(
 allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
 allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
 
+# Security & rate limit middlewares (inner layers)
+from app.middleware.security import security_headers_middleware
+app.middleware("http")(security_headers_middleware)
+
+from app.middleware.rate_limit import rate_limit_middleware
+app.middleware("http")(rate_limit_middleware)
+
+# CORS must be registered LAST so it's the OUTERMOST middleware
+# (Starlette executes in reverse registration order)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -51,14 +60,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
 )
-
-# Security headers middleware
-from app.middleware.security import security_headers_middleware
-app.middleware("http")(security_headers_middleware)
-
-# Rate limit middleware
-from app.middleware.rate_limit import rate_limit_middleware
-app.middleware("http")(rate_limit_middleware)
 
 
 @app.exception_handler(Exception)

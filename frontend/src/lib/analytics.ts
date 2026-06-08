@@ -7,7 +7,9 @@
  * - Silent failures — never blocks user experience
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Dev: empty = relative path → Next.js rewrites to backend (same-origin, no CORS)
+// Prod: set via vercel.json env → NEXT_PUBLIC_API_URL = Railway backend URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const ANONYMOUS_ID_KEY = "betweenlines_anonymous_id";
 const SESSION_ID_KEY = "betweenlines_session_id";
 

@@ -26,10 +26,11 @@ backend/
 │   ├── routers/
 │   │   └── chat.py        # API 路由（6 个端点）
 │   ├── services/
-│   │   ├── doubao_service.py   # AI 服务（文本+视觉）
+│   │   ├── doubao_service.py   # AI 服务（文本+视觉，多模型切换）
 │   │   ├── chat_cleaner.py     # 输入清洗+安全检测
 │   │   ├── chat_normalizer.py  # 聊天结构标准化（V2：自动解析参与者）
 │   │   ├── usage_service.py    # 配额管理（V2：统一计数）
+│   │   ├── cache.py            # 内容去重缓存（防刷新重复调 AI）
 │   │   └── storage.py          # SQLite 存储
 │   ├── schemas/
 │   │   └── chat.py        # Pydantic 请求/响应模型
@@ -69,29 +70,38 @@ POST /api/v1/analyze
     ▼
 [routers/chat.py] analyze_chat()
     │
-    ├── 1. 输入验证
-    │   ├── 长度检查: 10 ~ 5000 字符
+    ├── 1. 内容缓存检查（cache.py）
+    │   ├── SHA-256 哈希（内容+用户+关系类型）
+    │   ├── 命中 → 直接返回缓存结果（0配额, 0 AI调用）
+    │   └── 未命中 → 继续
+    │
+    ├── 2. 每日配额检查（usage_service.py）
+    │   ├── analysis_used < FREE_DAILY_LIMIT → 允许
+    │   └── 超限 → 429 daily_limit_reached
+    │
+    ├── 3. 输入验证
+    │   ├── 长度检查: 10 ~ 2000 字符
     │   ├── 违规词检测: is_potentially_harmful()
     │   └── 格式验证: validate_chat_format()
     │
-    ├── 2. 内容清洗
-    │   └── clean_chat_content()
-    │       ├── 去首尾空白
-    │       ├── 规范化换行 (\r\n → \n)
-    │       └── 移除多余空行
+    ├── 4. 内容清洗
+    │   └── clean_chat_content() → normalize_chat()
     │
-    ├── 3. AI 分析
+    ├── 5. AI 分析
     │   └── DoubaoService.analyze_chat()
-    │       ├── 构建 System Prompt (角色+规则)
-    │       ├── 构建 User Prompt (聊天内容+JSON Schema)
+    │       ├── 构建精简 System Prompt (~90 chars)
+    │       ├── 构建紧凑 User Prompt (一行 JSON schema)
+    │       ├── 多模型切换（配额耗尽自动换下一个）
     │       ├── 调用豆包文本模型 (temperature=0.7)
     │       └── 解析 JSON → ChatAnalysisResponse
     │
-    ├── 4. 记录日志
-    │   └── save_analysis_log()
-    │       └── INSERT INTO analysis_log (长度/状态/耗时/错误)
+    ├── 6. 写入缓存（10min TTL）
+    │   └── set_cached_result()
     │
-    └── 5. 返回结果
+    ├── 7. 记录日志
+    │   └── save_analysis_log()
+    │
+    └── 8. 返回结果
         └── JSON Response
 ```
 
@@ -196,7 +206,30 @@ CREATE TABLE IF NOT EXISTS analysis_log (
 
 ---
 
+## 内容去重缓存 (`services/cache.py`)
+
+防止用户刷新页面后重复提交相同内容导致浪费 AI token。
+
+| 特性 | 值 |
+|------|-----|
+| 缓存键 | SHA-256(anonymous_user_id + relationship_type + chat_content) |
+| TTL | 10 分钟 |
+| 最大条目 | 100（超出自动清理过期） |
+| 命中效果 | 跳过配额检查 + AI 调用，直接返回缓存结果 |
+
+**集成位置**：`/analyze` 端点的第一步，在配额检查之前执行。
+
+---
+
 ## 中间件
+
+### 中间件执行顺序
+
+CORS 中间件注册在最外层（最后 add），确保 OPTIONS 预检最先被处理：
+
+```
+请求 → CORS（最外层，处理 OPTIONS）→ 限流 → 安全头 → 路由
+```
 
 ### 限流 (`middleware/rate_limit.py`)
 
@@ -227,16 +260,19 @@ CREATE TABLE IF NOT EXISTS analysis_log (
 |--------|--------|------|
 | `OPENAI_API_KEY` | - | **必填**，豆包 API Key |
 | `OPENAI_BASE_URL` | `https://ark.cn-beijing.volces.com/api/v3` | API 地址 |
-| `OPENAI_MODEL` | `doubao-seed-1-8-251228` | 文本模型 |
-| `VISION_MODEL` | `doubao-vision-pro-32k` | 视觉模型 |
+| `TEXT_MODELS` | `doubao-seed-1-8-251228,...` | 文本模型列表（逗号分隔，按优先级，配额耗尽自动切换） |
+| `VISION_MODELS` | `doubao-1-5-vision-pro-32k-250115,...` | 视觉模型列表（同上） |
 | `TEMPERATURE` | 0.7 | 文本温度 |
-| `MAX_TOKENS` | 1000 | 文本最大 token |
+| `MAX_TOKENS` | 400 | 文本最大 token（精简 Prompt 后降低） |
 | `VISION_TEMPERATURE` | 0.3 | OCR 温度（更保守） |
 | `VISION_MAX_TOKENS` | 2000 | OCR 最大 token |
 | `RATE_LIMIT_REQUESTS` | 20 | 每分钟请求数 |
-| `MAX_CHAT_LENGTH` | 5000 | 最大输入长度 |
+| `MAX_CHAT_LENGTH` | 2000 | 最大输入长度 |
 | `MIN_CHAT_LENGTH` | 10 | 最小输入长度 |
-| `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS 白名单（逗号分隔） |
+| `MAX_SCREENSHOTS_PER_REQUEST` | 3 | 单次最大截图数（累计，不可分批绕开） |
+| `FREE_DAILY_LIMIT` | 10 | 每日免费分析次数 |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS 白名单（逗号分隔，生产需加 Vercel 域名） |
+| `ALERT_WEBHOOK_URL` | - | 模型全部不可用时告警（支持 PushPlus/钉钉/飞书/企微） |
 
 ---
 

@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { analyzeChat, ChatAnalysisResponse, type RelationshipType } from "./api";
 import { track, getAnalyticsUserId } from "./analytics";
 import { useI18n } from "@/contexts/I18nContext";
+
+const SESSION_KEY = "betweenlines_last_analysis";
+const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+
+interface SavedAnalysis {
+  chatContent: string;
+  result: ChatAnalysisResponse;
+  timestamp: number;
+}
 
 interface UseChatAnalysisState {
   result: ChatAnalysisResponse | null;
@@ -13,16 +22,53 @@ interface UseChatAnalysisState {
   limitReached: boolean;
 }
 
+function loadSavedAnalysis(): ChatAnalysisResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const saved: SavedAnalysis = JSON.parse(raw);
+    if (Date.now() - saved.timestamp > SESSION_MAX_AGE_MS) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return saved.result;
+  } catch {
+    sessionStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
+
+function saveAnalysis(result: ChatAnalysisResponse): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      result,
+      timestamp: Date.now(),
+    }));
+  } catch { /* sessionStorage unavailable */ }
+}
+
 export function useChatAnalysis() {
   const { t } = useI18n();
 
-  const [state, setState] = useState<UseChatAnalysisState>({
-    result: null,
-    isLoading: false,
-    error: null,
-    errorType: null,
-    limitReached: false,
+  const [state, setState] = useState<UseChatAnalysisState>(() => {
+    const saved = loadSavedAnalysis();
+    return {
+      result: saved,
+      isLoading: false,
+      error: null,
+      errorType: null,
+      limitReached: false,
+    };
   });
+
+  // Clear saved result if result is gone (e.g. user clicked back without reset)
+  useEffect(() => {
+    if (!state.result && !state.isLoading) {
+      try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ok */ }
+    }
+  }, [state.result, state.isLoading]);
 
   const analyze = useCallback(async (chatContent: string, relationshipType: RelationshipType = "romantic", source?: string, language?: string) => {
     setState({ result: null, isLoading: true, error: null, errorType: null, limitReached: false });
@@ -41,6 +87,9 @@ export function useChatAnalysis() {
       track("analysis_success", { duration_ms: durationMs, relationship_type: relationshipType });
       track("reply_generated");
 
+      // Persist to sessionStorage so refresh doesn't lose result
+      saveAnalysis(result);
+
       setState({ result, isLoading: false, error: null, errorType: null, limitReached: false });
     } catch (err) {
       const { message, type, isDailyLimit } = getErrorMessage(err, t.errors);
@@ -52,6 +101,7 @@ export function useChatAnalysis() {
   }, [t.errors]);
 
   const reset = useCallback(() => {
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ok */ }
     setState({ result: null, isLoading: false, error: null, errorType: null, limitReached: false });
   }, []);
 
