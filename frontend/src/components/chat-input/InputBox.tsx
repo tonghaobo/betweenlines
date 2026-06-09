@@ -20,8 +20,14 @@ interface InputBoxProps {
 export function InputBox({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange }: InputBoxProps) {
   const { t } = useI18n();
 
-  // Text state
-  const [text, setText] = useState(initialText);
+  // Text state — persist to sessionStorage so refresh doesn't lose draft
+  const [text, setText] = useState(() => {
+    if (typeof window === "undefined") return initialText;
+    try {
+      const saved = sessionStorage.getItem("betweenlines_draft_text");
+      return saved || initialText;
+    } catch { return initialText; }
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Image extraction state
@@ -82,11 +88,15 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
 
   // ── Text handlers ──
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (e.target.value.length <= MAX_CHARS) setText(e.target.value);
+    if (e.target.value.length <= MAX_CHARS) {
+      setText(e.target.value);
+      try { sessionStorage.setItem("betweenlines_draft_text", e.target.value); } catch { /* ok */ }
+    }
   };
 
   const handleSubmit = () => {
     if (text.trim().length >= 10 && !isLoading) {
+      try { sessionStorage.removeItem("betweenlines_draft_text"); } catch { /* ok */ }
       onSubmit(text.trim(), relationshipType);
     }
   };
@@ -140,20 +150,32 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
     setScreenshotError(null);
     setExtracting(true);
     track("image_analysis_started", { file_count: files.length });
+
+    const hadText = text.trim().length > 0;
+
     try {
       // Sort by capture time to preserve chronological order
       const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
       const compressed = await Promise.all(sorted.map(compressImage));
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, getAnalyticsUserId());
 
-      // Use callback forms to ensure we always operate on latest state
-      setExtractedText(prev => {
-        const merged = prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text;
+      if (hadText) {
+        // Append OCR text to textarea with separator (same as multi-screenshot)
+        setText(prev => prev + "\n---\n" + result.extracted_text);
+        // Still save to sessionStorage for refresh protection
         try {
-          sessionStorage.setItem("betweenlines_ocr_text", JSON.stringify({ text: merged, timestamp: Date.now() }));
+          sessionStorage.setItem("betweenlines_ocr_text", JSON.stringify({ text: result.extracted_text, timestamp: Date.now() }));
         } catch { /* ok */ }
-        return merged;
-      });
+      } else {
+        // No existing text → show confirmation dialog (existing behavior)
+        setExtractedText(prev => {
+          const merged = prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text;
+          try {
+            sessionStorage.setItem("betweenlines_ocr_text", JSON.stringify({ text: merged, timestamp: Date.now() }));
+          } catch { /* ok */ }
+          return merged;
+        });
+      }
       setScreenshotCount(prev => {
         const newCount = prev + sorted.length;
         try { sessionStorage.setItem("betweenlines_ocr_count", String(newCount)); } catch { /* ok */ }
@@ -272,7 +294,6 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
               placeholder={t.chatInput.unifiedPlaceholder}
               className="w-full h-40 p-4 bg-transparent resize-none focus:outline-none
                          text-gray-700 placeholder:text-gray-400 text-sm leading-relaxed"
-              disabled={isLoading}
               maxLength={MAX_CHARS}
             />
             <div className="absolute bottom-2 right-3 text-xs text-gray-400">
@@ -327,10 +348,18 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
       {extractedText && !extracting && (
         <div className="space-y-3">
           <p className="text-sm text-gray-600">{t.chatInput.extractedPreview}</p>
-          <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-700
-                          leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
-            {extractedText}
-          </div>
+          <textarea
+            value={extractedText}
+            onChange={(e) => {
+              setExtractedText(e.target.value);
+              try {
+                sessionStorage.setItem("betweenlines_ocr_text", JSON.stringify({ text: e.target.value, timestamp: Date.now() }));
+              } catch { /* ok */ }
+            }}
+            className="w-full p-4 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-700
+                       leading-relaxed max-h-60 resize-none focus:outline-none focus:border-blue-300"
+            rows={5}
+          />
           <div className="flex flex-col gap-2">
             <div className="flex gap-2">
               <button onClick={handleCancelExtract}

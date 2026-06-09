@@ -157,7 +157,12 @@ extract_text_from_screenshot(image_bytes: bytes) -> ScreenshotAnalysisResponse
 
 ### 配额管理 (`services/usage_service.py`)
 
-**V2 统一配额**：文字分析和截图分析共享同一个每日限额（默认 3 次/天）。不再区分 text_analysis / image_analysis 两种配额。
+**V2 统一配额**：文字分析和截图分析共享同一个每日限额（默认 10 次/天）。
+
+**V1.3 多重奖励**：
+- `_get_total_reward_count()` 合并分享 + 反馈奖励作为额外配额
+- 分享奖励：`ENABLE_SHARE_REWARD` / `MAX_SHARE_REWARDS_PER_DAY`
+- 反馈奖励：`ENABLE_FEEDBACK_REWARD` / `MAX_FEEDBACK_REWARDS_PER_DAY`
 
 ### 数据存储 (`services/storage.py`)
 
@@ -181,6 +186,15 @@ CREATE TABLE IF NOT EXISTS outcome (
     reply_used TEXT,              -- sent / not_sent / modified
     outcome TEXT,                 -- more_positive / about_same / colder / no_reply / prefer_not
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 反馈奖励表 (V1.3)
+CREATE TABLE IF NOT EXISTS feedback_rewards (
+    id TEXT PRIMARY KEY,
+    anonymous_user_id TEXT NOT NULL,
+    reward_date TEXT NOT NULL,
+    reward_count INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- 分析日志表
@@ -260,8 +274,8 @@ CORS 中间件注册在最外层（最后 add），确保 OPTIONS 预检最先�
 |--------|--------|------|
 | `OPENAI_API_KEY` | - | **必填**，豆包 API Key |
 | `OPENAI_BASE_URL` | `https://ark.cn-beijing.volces.com/api/v3` | API 地址 |
-| `TEXT_MODELS` | `doubao-seed-1-8-251228,...` | 文本模型列表（逗号分隔，按优先级，配额耗尽自动切换） |
-| `VISION_MODELS` | `doubao-1-5-vision-pro-32k-250115,...` | 视觉模型列表（同上） |
+| `TEXT_MODELS` | `doubao-1-5-pro-32k-250115,...` | 文本模型列表（按速度排序，基准测试见 `tests/benchmark_models.py`） |
+| `VISION_MODELS` | `doubao-1-5-vision-pro-32k-250115,...` | 视觉模型列表（同上，lite 不可用已移除） |
 | `TEMPERATURE` | 0.7 | 文本温度 |
 | `MAX_TOKENS` | 400 | 文本最大 token（精简 Prompt 后降低） |
 | `VISION_TEMPERATURE` | 0.3 | OCR 温度（更保守） |
@@ -271,6 +285,10 @@ CORS 中间件注册在最外层（最后 add），确保 OPTIONS 预检最先�
 | `MIN_CHAT_LENGTH` | 10 | 最小输入长度 |
 | `MAX_SCREENSHOTS_PER_REQUEST` | 3 | 单次最大截图数（累计，不可分批绕开） |
 | `FREE_DAILY_LIMIT` | 10 | 每日免费分析次数 |
+| `ENABLE_SHARE_REWARD` | true | 开启分享奖励 |
+| `MAX_SHARE_REWARDS_PER_DAY` | 1 | 每日分享奖励上限 |
+| `ENABLE_FEEDBACK_REWARD` | true | 开启反馈奖励（V1.3） |
+| `MAX_FEEDBACK_REWARDS_PER_DAY` | 1 | 每日反馈奖励上限（V1.3） |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS 白名单（逗号分隔，生产需加 Vercel 域名） |
 | `ALERT_WEBHOOK_URL` | - | 模型全部不可用时告警（支持 PushPlus/钉钉/飞书/企微） |
 

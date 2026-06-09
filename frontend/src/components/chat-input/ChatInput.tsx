@@ -21,7 +21,13 @@ export function ChatInput({ onSubmit, isLoading, initialText = "", relationshipT
   const [mode, setMode] = useState<InputMode>("text");
 
   // Text mode state
-  const [text, setText] = useState(initialText);
+  const [text, setText] = useState(() => {
+    if (typeof window === "undefined") return initialText;
+    try {
+      const saved = sessionStorage.getItem("betweenlines_draft_text");
+      return saved || initialText;
+    } catch { return initialText; }
+  });
   const [charCount, setCharCount] = useState(initialText.length);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -101,11 +107,13 @@ export function ChatInput({ onSubmit, isLoading, initialText = "", relationshipT
     if (value.length <= MAX_CHARS) {
       setText(value);
       setCharCount(value.length);
+      try { sessionStorage.setItem("betweenlines_draft_text", value); } catch { /* ok */ }
     }
   };
 
   const handleSubmit = () => {
     if (text.trim().length >= MIN_CHARS && !isLoading) {
+      try { sessionStorage.removeItem("betweenlines_draft_text"); } catch { /* ok */ }
       onSubmit(text.trim(), relationshipType);
     }
   };
@@ -357,7 +365,6 @@ export function ChatInput({ onSubmit, isLoading, initialText = "", relationshipT
                          transition-shadow duration-200 ${
                            isOverLimit ? "border-red-300" : "border-gray-200"
                          }`}
-              disabled={isLoading}
             />
             <div className={`absolute bottom-3 right-3 text-xs ${isOverLimit ? "text-red-500" : "text-gray-400"}`}>
               {t.chatInput.charCount
@@ -520,18 +527,21 @@ export function ChatInput({ onSubmit, isLoading, initialText = "", relationshipT
           )}
 
           {/* Extracted text confirmation */}
-          {extractedText && (
+          {extractedText && !extracting && (
             <div className="space-y-3">
               <p className="text-sm text-gray-600">{t.chatInput.extractedPreview}</p>
-              <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-700 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
-                {extractedText}
-              </div>
-              {extracting && (
-                <div className="flex items-center justify-center gap-2 py-2 text-sm text-blue-600">
-                  <LoadingSpinner />
-                  {t.chatInput.extracting}
-                </div>
-              )}
+              <textarea
+                value={extractedText}
+                onChange={(e) => {
+                  setExtractedText(e.target.value);
+                  try {
+                    sessionStorage.setItem("betweenlines_ocr_text", JSON.stringify({ text: e.target.value, timestamp: Date.now() }));
+                  } catch { /* ok */ }
+                }}
+                className="w-full p-4 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-700
+                           leading-relaxed max-h-60 resize-none focus:outline-none focus:border-blue-300"
+                rows={5}
+              />
               <div className="flex flex-col gap-2">
                 <div className="flex gap-2">
                   <button

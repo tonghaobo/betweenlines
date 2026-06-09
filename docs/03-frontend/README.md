@@ -170,6 +170,17 @@ frontend/src/
 - 累计计数持久化到 `sessionStorage`，刷新后接续计数
 - 后端 + 前端双重限制（`MAX_SCREENSHOTS_PER_REQUEST`）
 
+### 关系类型选择
+
+- `relationshipType` 状态提升到 `page.tsx`，避免 InputBox 卸载/重挂载后重置为默认值
+- 选择非恋爱标签后分析，返回首页时保持选择不变
+
+### 分享 & 反馈奖励提示
+
+- 主页用量区显示分享奖励提示（有剩余/已用完两种状态）
+- 提交反馈后显示 `+1 次分析已到账！` 动画提示
+- 完成后自动刷新用量显示
+
 ### I18nContext
 
 - `locale`: `"en" | "zh"`

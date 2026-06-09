@@ -56,7 +56,10 @@ export default function Home() {
   const handleSubmit = (text: string, relType: RelationshipType, source?: string) => {
     setRelationshipType(relType);
     setLastRelationshipType(relType);
-    analyze(text, relType, source, locale);
+    // Strip section separators (---) used for multi-screenshot / text+OCR merging.
+    // These are UI helpers, not dialogue — keeping them would confuse the model.
+    const cleaned = text.replace(/\n---\n/g, "\n").replace(/^---\n/g, "").replace(/\n---$/g, "");
+    analyze(cleaned, relType, source, locale);
   };
 
   // Loading state
