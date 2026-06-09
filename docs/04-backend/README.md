@@ -274,7 +274,7 @@ CORS 中间件注册在最外层（最后 add），确保 OPTIONS 预检最先�
 |--------|--------|------|
 | `OPENAI_API_KEY` | - | **必填**，豆包 API Key |
 | `OPENAI_BASE_URL` | `https://ark.cn-beijing.volces.com/api/v3` | API 地址 |
-| `TEXT_MODELS` | `doubao-1-5-pro-32k-250115,...` | 文本模型列表（按速度排序，基准测试见 `tests/benchmark_models.py`） |
+| `TEXT_MODELS` | `doubao-seed-2-0-mini-260428,...` | 文本模型列表（质量优先+速度加权排名，见 `tests/benchmark_models.py`） |
 | `VISION_MODELS` | `doubao-1-5-vision-pro-32k-250115,...` | 视觉模型列表（同上，lite 不可用已移除） |
 | `TEMPERATURE` | 0.7 | 文本温度 |
 | `MAX_TOKENS` | 400 | 文本最大 token（精简 Prompt 后降低） |

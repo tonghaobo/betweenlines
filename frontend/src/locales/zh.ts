@@ -60,6 +60,7 @@ const zh = {
     shareRewardHint: "分享即送 +1 次分析，今天还能薅 {remaining} 次",
     shareExhaustedHint: "今日分享奖励已用完，写个反馈也能 +1 次分析",
     maxScreenshotsHint: "单次最多上传 {max} 张截图",
+    screenshotsRemaining: "已传 {used}/{max} 张，还能传 {remaining} 张",
     maxScreenshotsError: "单次最多上传 {max} 张截图。",
   },
   usageLimit: {

@@ -61,6 +61,7 @@ const en = {
     shareRewardHint: "Share to get +1 analysis — {remaining} free spin(s) left today",
     shareExhaustedHint: "Share rewards used up — leave feedback for +1 analysis",
     maxScreenshotsHint: "Up to {max} screenshots at a time",
+    screenshotsRemaining: "{used}/{max} uploaded, {remaining} more allowed",
     maxScreenshotsError: "You can upload up to {max} screenshots at a time.",
   },
   usageLimit: {

@@ -181,6 +181,14 @@ frontend/src/
 - 提交反馈后显示 `+1 次分析已到账！` 动画提示
 - 完成后自动刷新用量显示
 
+### 文本框 & OCR 交互
+
+- textarea 在分析过程中始终可编辑（移除 `disabled={isLoading}`）
+- 有文字时上传截图 → OCR 结果自动追加到文本框末尾（`---` 分隔）
+- 分隔符在送模型前自动清洗（page.tsx handleSubmit）
+- 手动输入的文字通过 `sessionStorage` 持久化，刷新后恢复
+- OCR 提取文字改为可编辑 textarea（替换只读 div）
+
 ### I18nContext
 
 - `locale`: `"en" | "zh"`
