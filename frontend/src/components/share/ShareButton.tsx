@@ -2,10 +2,10 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toBlob } from "html-to-image";
+import { claimShareReward, type ChatAnalysisResponse, type RelationshipType } from "@/lib/api";
+import { track, getAnalyticsUserId } from "@/lib/analytics";
 import { useI18n } from "@/contexts/I18nContext";
 import { ShareCard } from "./ShareCard";
-import { track, getAnalyticsUserId } from "@/lib/analytics";
-import { claimShareReward, type ChatAnalysisResponse, type RelationshipType } from "@/lib/api";
 
 interface ShareButtonProps {
   data: ChatAnalysisResponse;

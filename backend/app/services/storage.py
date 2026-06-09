@@ -120,6 +120,24 @@ def init_db():
             """)
         except sqlite3.OperationalError:
             pass
+
+        # Feedback rewards table (V1.3)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS feedback_rewards (
+                id TEXT PRIMARY KEY,
+                anonymous_user_id TEXT NOT NULL,
+                reward_date TEXT NOT NULL,
+                reward_count INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        try:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_feedback_rewards_user_date
+                ON feedback_rewards(anonymous_user_id, reward_date)
+            """)
+        except sqlite3.OperationalError:
+            pass
         
         conn.commit()
     logger.info("Database initialized successfully")
@@ -460,4 +478,32 @@ def save_share_reward(anonymous_user_id: str, reward_type: str, share_hash: str)
         )
         conn.commit()
     logger.info(f"Share reward granted: user={anonymous_user_id}, type={reward_type}")
+    return reward_id
+
+
+# ── Feedback Rewards (V1.3) ──
+
+def get_feedback_reward_count(anonymous_user_id: str, reward_date: str) -> int:
+    """Get today's feedback reward count for a user."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        row = cursor.execute(
+            "SELECT COALESCE(SUM(reward_count), 0) FROM feedback_rewards WHERE anonymous_user_id = ? AND reward_date = ?",
+            (anonymous_user_id, reward_date),
+        ).fetchone()
+    return row[0] if row else 0
+
+
+def save_feedback_reward(anonymous_user_id: str) -> str:
+    """Save a feedback reward record. Returns the reward ID."""
+    reward_id = str(uuid.uuid4())
+    reward_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO feedback_rewards (id, anonymous_user_id, reward_date, reward_count) VALUES (?, ?, ?, 1)",
+            (reward_id, anonymous_user_id, reward_date),
+        )
+        conn.commit()
+    logger.info(f"Feedback reward granted: user={anonymous_user_id}")
     return reward_id

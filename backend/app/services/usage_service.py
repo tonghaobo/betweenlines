@@ -14,13 +14,19 @@ logger = logging.getLogger(__name__)
 VALID_RELATIONSHIP_TYPES = {"romantic", "friend", "family", "coworker", "other"}
 
 
-def _get_reward_count(anonymous_user_id: str) -> int:
-    """Get today's share reward count (bonus analysis quota)."""
-    if not settings.ENABLE_SHARE_REWARD:
-        return 0
-    from app.services.storage import get_share_reward_count
+def _get_total_reward_count(anonymous_user_id: str) -> int:
+    """Get today's total reward bonus (share + feedback)."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return get_share_reward_count(anonymous_user_id, today)
+    total = 0
+    if settings.ENABLE_SHARE_REWARD:
+        from app.services.storage import get_share_reward_count
+        share = get_share_reward_count(anonymous_user_id, today)
+        total += min(share, settings.MAX_SHARE_REWARDS_PER_DAY)
+    if settings.ENABLE_FEEDBACK_REWARD:
+        from app.services.storage import get_feedback_reward_count
+        fb = get_feedback_reward_count(anonymous_user_id, today)
+        total += min(fb, settings.MAX_FEEDBACK_REWARDS_PER_DAY)
+    return total
 
 
 def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
@@ -38,8 +44,7 @@ def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
     # V2: unified quota — text and image analysis share the same daily limit
     used = usage["analysis_count"]
     base_limit = settings.FREE_DAILY_LIMIT
-    reward_count = _get_reward_count(anonymous_user_id)
-    effective_limit = base_limit + min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY)
+    effective_limit = base_limit + _get_total_reward_count(anonymous_user_id)
 
     if used >= effective_limit:
         return {
@@ -67,17 +72,28 @@ def check_and_increment_usage(anonymous_user_id: str, usage_type: str) -> dict:
 def get_usage_info(anonymous_user_id: str) -> dict:
     """Get usage info for a user (V2: unified quota — all analysis types share one limit)."""
     usage = get_daily_usage(anonymous_user_id)
-    reward_count = _get_reward_count(anonymous_user_id)
-    reward = min(reward_count, settings.MAX_SHARE_REWARDS_PER_DAY) if settings.ENABLE_SHARE_REWARD else 0
+
+    # Separate counts for frontend display
+    from app.services.storage import get_share_reward_count, get_feedback_reward_count
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    share_reward_count = get_share_reward_count(anonymous_user_id, today) if settings.ENABLE_SHARE_REWARD else 0
+    fb_reward_count = get_feedback_reward_count(anonymous_user_id, today) if settings.ENABLE_FEEDBACK_REWARD else 0
+    total_reward = _get_total_reward_count(anonymous_user_id)
+
     return {
         "analysis_used": usage["analysis_count"],
         "analysis_limit": settings.FREE_DAILY_LIMIT,
-        "analysis_reward": reward,
-        "screenshot_used": usage["analysis_count"],  # V2: same bucket
-        "screenshot_limit": settings.FREE_DAILY_LIMIT,  # V2: same limit
+        "analysis_reward": total_reward,
+        "screenshot_used": usage["analysis_count"],
+        "screenshot_limit": settings.FREE_DAILY_LIMIT,
         "max_chat_length": settings.MAX_CHAT_LENGTH,
         "max_screenshots_per_request": settings.MAX_SCREENSHOTS_PER_REQUEST,
         "share_reward_enabled": settings.ENABLE_SHARE_REWARD,
+        "max_share_rewards_per_day": settings.MAX_SHARE_REWARDS_PER_DAY,
+        "share_rewards_used_today": share_reward_count,
+        "feedback_reward_enabled": settings.ENABLE_FEEDBACK_REWARD,
+        "max_feedback_rewards_per_day": settings.MAX_FEEDBACK_REWARDS_PER_DAY,
+        "feedback_rewards_used_today": fb_reward_count,
     }
 
 

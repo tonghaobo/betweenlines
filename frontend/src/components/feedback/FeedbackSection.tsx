@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { submitFeedback } from "@/lib/api";
-import { track } from "@/lib/analytics";
+import { track, getAnalyticsUserId } from "@/lib/analytics";
 import { useI18n } from "@/contexts/I18nContext";
 
 const NEGATIVE_REASONS = [
@@ -26,6 +26,7 @@ export function FeedbackSection() {
   const { t } = useI18n();
   const [voted, setVoted] = useState<boolean | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [rewardMsg, setRewardMsg] = useState("");
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,7 +51,8 @@ export function FeedbackSection() {
     track("feedback_given", { helpful: voted! });
 
     try {
-      await submitFeedback(voted!, undefined, selectedReasons, comment);
+      const msg = await submitFeedback(voted!, undefined, selectedReasons, comment, getAnalyticsUserId());
+      if (msg.includes("+1")) setRewardMsg(t.share.rewardGranted);
     } catch {
       // Silently fail
     }
@@ -59,10 +61,13 @@ export function FeedbackSection() {
 
   if (submitted) {
     return (
-      <div className="w-full max-w-2xl card text-center animate-fade-in">
+      <div className="w-full max-w-2xl card text-center animate-fade-in space-y-2">
         <p className="text-gray-500 text-sm">
           {voted ? "🎉" : "😔"} {t.feedback.thanks}
         </p>
+        {rewardMsg && (
+          <p className="text-blue-500 text-sm font-medium animate-pulse">{rewardMsg}</p>
+        )}
       </div>
     );
   }

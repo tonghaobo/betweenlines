@@ -57,6 +57,8 @@ const zh = {
     screenshotUsageRemaining: "今日剩余 {remaining} 次截图上传",
     usageSummary: "今日剩余：{used}/{limit} 次",
     usageSummaryExhausted: "今日剩余：{used}/{limit} 次",
+    shareRewardHint: "分享1次 = +1次分析 🎁 今天还能薅{remaining}次",
+    shareExhaustedHint: "分享次数已用完～ 别急，写个反馈也能白嫖1次！",
     maxScreenshotsHint: "单次最多上传 {max} 张截图",
     maxScreenshotsError: "单次最多上传 {max} 张截图。",
   },

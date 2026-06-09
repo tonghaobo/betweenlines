@@ -22,6 +22,7 @@ export default function Home() {
   const resultRef = useRef<HTMLDivElement>(null);
   const hasTrackedPageView = useRef(false);
   const [exampleText, setExampleText] = useState("");
+  const [relationshipType, setRelationshipType] = useState<RelationshipType>("romantic");
   const [lastRelationshipType, setLastRelationshipType] = useState<RelationshipType>("romantic");
 
   // Track page_view + return_visit on mount
@@ -52,9 +53,10 @@ export default function Home() {
     setExampleText(text);
   };
 
-  const handleSubmit = (text: string, relationshipType: RelationshipType, source?: string) => {
-    setLastRelationshipType(relationshipType);
-    analyze(text, relationshipType, source, locale);
+  const handleSubmit = (text: string, relType: RelationshipType, source?: string) => {
+    setRelationshipType(relType);
+    setLastRelationshipType(relType);
+    analyze(text, relType, source, locale);
   };
 
   // Loading state
@@ -62,7 +64,7 @@ export default function Home() {
     return (
       <div className="flex flex-col items-center space-y-8">
         <HeroSection />
-        <InputBox onSubmit={handleSubmit} isLoading={true} initialText={exampleText} />
+        <InputBox onSubmit={handleSubmit} isLoading={true} initialText={exampleText} relationshipType={relationshipType} onRelationshipChange={setRelationshipType} />
         <LoadingOverlay />
       </div>
     );
@@ -95,7 +97,7 @@ export default function Home() {
     <div className="flex flex-col items-center space-y-8">
       <HeroSection />
       <ExampleChats onSelect={handleSelectExample} />
-      <InputBox onSubmit={handleSubmit} isLoading={false} initialText={exampleText} />
+      <InputBox onSubmit={handleSubmit} isLoading={false} initialText={exampleText} relationshipType={relationshipType} onRelationshipChange={setRelationshipType} />
       <FollowUpReminder />
 
       {error && !limitReached && (

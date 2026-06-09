@@ -34,6 +34,11 @@ export interface UsageInfo {
   max_chat_length: number;
   max_screenshots_per_request: number;
   share_reward_enabled: boolean;
+  max_share_rewards_per_day: number;
+  share_rewards_used_today: number;
+  feedback_reward_enabled: boolean;
+  max_feedback_rewards_per_day: number;
+  feedback_rewards_used_today: number;
 }
 
 export interface ShareRewardResponse {
@@ -206,7 +211,8 @@ export async function submitFeedback(
   analysisId?: string,
   reason: string[] = [],
   comment: string = "",
-): Promise<void> {
+  anonymousUserId?: string,
+): Promise<string> {
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/api/v1/feedback`,
     {
@@ -217,6 +223,7 @@ export async function submitFeedback(
       body: JSON.stringify({
         helpful,
         analysis_id: analysisId || null,
+        anonymous_user_id: anonymousUserId || null,
         reason,
         comment,
       }),
@@ -226,6 +233,13 @@ export async function submitFeedback(
 
   if (!response.ok) {
     console.warn("Feedback submission failed:", response.status);
+    return "";
+  }
+  try {
+    const data = await response.json();
+    return data.message || "";
+  } catch {
+    return "";
   }
 }
 
@@ -265,7 +279,7 @@ export async function getUsage(anonymousUserId: string): Promise<UsageInfo> {
 
   if (!response.ok) {
     console.warn("Usage fetch failed:", response.status);
-    return { analysis_used: 0, analysis_limit: 3, analysis_reward: 0, screenshot_used: 0, screenshot_limit: 3, max_chat_length: 2000, max_screenshots_per_request: 3, share_reward_enabled: false };
+    return { analysis_used: 0, analysis_limit: 3, analysis_reward: 0, screenshot_used: 0, screenshot_limit: 3, max_chat_length: 2000, max_screenshots_per_request: 3, share_reward_enabled: false, max_share_rewards_per_day: 0, share_rewards_used_today: 0, feedback_reward_enabled: false, max_feedback_rewards_per_day: 0, feedback_rewards_used_today: 0 };
   }
 
   return response.json();

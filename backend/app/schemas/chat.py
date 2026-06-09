@@ -71,6 +71,7 @@ class ChatAnalysisResponse(BaseModel):
 
 class FeedbackRequest(BaseModel):
     analysis_id: Optional[str] = Field(None, description="分析记录ID")
+    anonymous_user_id: Optional[str] = Field(None, min_length=3, max_length=64, description="匿名用户ID")
     helpful: bool = Field(..., description="是否有帮助")
     reason: list[str] = Field(default_factory=list, description="反馈原因")
     comment: str = Field("", description="补充文字")
@@ -134,6 +135,11 @@ class UsageResponse(BaseModel):
     max_chat_length: int = 5000
     max_screenshots_per_request: int = 3
     share_reward_enabled: bool = False
+    max_share_rewards_per_day: int = 0
+    share_rewards_used_today: int = 0
+    feedback_reward_enabled: bool = False
+    max_feedback_rewards_per_day: int = 0
+    feedback_rewards_used_today: int = 0
 
 
 class ShareRewardRequest(BaseModel):

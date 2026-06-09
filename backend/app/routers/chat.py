@@ -240,7 +240,23 @@ async def submit_feedback(request: FeedbackRequest):
     except Exception as e:
         logger.warning(f"Failed to save feedback: {e}")
 
-    return FeedbackResponse(message="感谢你的反馈！")
+    # Grant feedback reward if enabled and eligible
+    reward_msg = ""
+    if request.anonymous_user_id and settings.ENABLE_FEEDBACK_REWARD:
+        try:
+            from datetime import datetime, timezone
+            from app.services.storage import get_feedback_reward_count, save_feedback_reward
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            current = get_feedback_reward_count(request.anonymous_user_id, today)
+            if current < settings.MAX_FEEDBACK_REWARDS_PER_DAY:
+                save_feedback_reward(request.anonymous_user_id)
+                reward_msg = " +1 次分析已到账！"
+            else:
+                logger.info(f"Feedback reward limit reached for {request.anonymous_user_id[:12]}...")
+        except Exception as e:
+            logger.warning(f"Failed to grant feedback reward: {e}")
+
+    return FeedbackResponse(message=f"感谢你的反馈！{reward_msg}".strip())
 
 
 @router.post("/outcome", response_model=OutcomeResponse)

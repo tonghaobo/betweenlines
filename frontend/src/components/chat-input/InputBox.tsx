@@ -13,11 +13,12 @@ interface InputBoxProps {
   onSubmit: (text: string, relationshipType: RelationshipType) => void;
   isLoading: boolean;
   initialText?: string;
+  relationshipType: RelationshipType;
+  onRelationshipChange: (type: RelationshipType) => void;
 }
 
-export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProps) {
+export function InputBox({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange }: InputBoxProps) {
   const { t } = useI18n();
-  const [relationshipType, setRelationshipType] = useState<RelationshipType>("romantic");
 
   // Text state
   const [text, setText] = useState(initialText);
@@ -65,6 +66,11 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
         screenshot_used: 0, screenshot_limit: 3,
         max_chat_length: 2000, max_screenshots_per_request: 3,
         share_reward_enabled: false,
+        max_share_rewards_per_day: 0,
+        share_rewards_used_today: 0,
+        feedback_reward_enabled: false,
+        max_feedback_rewards_per_day: 0,
+        feedback_rewards_used_today: 0,
       });
     }
   }, []);
@@ -233,7 +239,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
 
   return (
     <div className="w-full max-w-lg space-y-3">
-      <RelationshipSelector value={relationshipType} onChange={setRelationshipType} />
+      <RelationshipSelector value={relationshipType} onChange={onRelationshipChange} />
 
       {/* Hidden file input — always rendered, so upload & "add more" buttons work after extraction */}
       <input
@@ -361,11 +367,22 @@ export function InputBox({ onSubmit, isLoading, initialText = "" }: InputBoxProp
 
       {/* Usage indicator */}
       {usage && (
-        <p className={`text-xs text-center ${usage.analysis_used >= usage.analysis_limit ? "text-amber-600 font-medium" : "text-gray-400"}`}>
-          {t.chatInput.usageSummary
-            .replace("{used}", String(usage.analysis_used))
-            .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))}
-        </p>
+        <div className="space-y-1">
+          <p className={`text-xs text-center ${usage.analysis_used >= usage.analysis_limit + usage.analysis_reward ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+            {t.chatInput.usageSummary
+              .replace("{used}", String(usage.analysis_used))
+              .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))}
+          </p>
+          {/* Share / Feedback reward hint */}
+          {usage.share_reward_enabled && (
+            <p className="text-xs text-center text-blue-500">
+              {usage.share_rewards_used_today >= usage.max_share_rewards_per_day
+                ? t.chatInput.shareExhaustedHint
+                : t.chatInput.shareRewardHint.replace("{remaining}", String(usage.max_share_rewards_per_day - usage.share_rewards_used_today))
+              }
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

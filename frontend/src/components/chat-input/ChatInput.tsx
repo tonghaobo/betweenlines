@@ -10,14 +10,15 @@ interface ChatInputProps {
   onSubmit: (text: string, relationshipType: RelationshipType, source?: string) => void;
   isLoading: boolean;
   initialText?: string;
+  relationshipType: RelationshipType;
+  onRelationshipChange: (type: RelationshipType) => void;
 }
 
 type InputMode = "text" | "screenshot";
 
-export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputProps) {
+export function ChatInput({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange }: ChatInputProps) {
   const { t } = useI18n();
   const [mode, setMode] = useState<InputMode>("text");
-  const [relationshipType, setRelationshipType] = useState<RelationshipType>("romantic");
 
   // Text mode state
   const [text, setText] = useState(initialText);
@@ -314,7 +315,7 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
   return (
     <div className="w-full max-w-lg space-y-3">
       {/* Relationship selector */}
-      <RelationshipSelector value={relationshipType} onChange={setRelationshipType} />
+      <RelationshipSelector value={relationshipType} onChange={onRelationshipChange} />
 
       {/* Mode switcher tabs */}
       <div className="flex border-b border-gray-200">
@@ -401,12 +402,22 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
 
           {/* Daily usage indicator — unified quota for text & screenshot */}
           {usage && (
-            <p className={`text-xs text-center ${usage.analysis_used >= (usage.analysis_limit + usage.analysis_reward) ? "text-amber-600 font-medium" : "text-gray-400"}`}>
-              {t.chatInput.usageSummary
-                .replace("{used}", String(usage.analysis_used))
-                .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))
-              }
-            </p>
+            <div className="space-y-1">
+              <p className={`text-xs text-center ${usage.analysis_used >= (usage.analysis_limit + usage.analysis_reward) ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+                {t.chatInput.usageSummary
+                  .replace("{used}", String(usage.analysis_used))
+                  .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))
+                }
+              </p>
+              {usage.share_reward_enabled && (
+                <p className="text-xs text-center text-blue-500">
+                  {usage.share_rewards_used_today >= usage.max_share_rewards_per_day
+                    ? t.chatInput.shareExhaustedHint
+                    : t.chatInput.shareRewardHint.replace("{remaining}", String(usage.max_share_rewards_per_day - usage.share_rewards_used_today))
+                  }
+                </p>
+              )}
+            </div>
           )}
         </>
       )}
@@ -488,12 +499,22 @@ export function ChatInput({ onSubmit, isLoading, initialText = "" }: ChatInputPr
 
               {/* Screenshot usage indicator — same unified quota */}
               {usage && (
-                <p className={`text-xs text-center ${usage.analysis_used >= (usage.analysis_limit + usage.analysis_reward) ? "text-amber-600 font-medium" : "text-gray-400"}`}>
-                  {t.chatInput.usageSummary
-                    .replace("{used}", String(usage.analysis_used))
-                    .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))
-                  }
-                </p>
+                <div className="space-y-1">
+                  <p className={`text-xs text-center ${usage.analysis_used >= (usage.analysis_limit + usage.analysis_reward) ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+                    {t.chatInput.usageSummary
+                      .replace("{used}", String(usage.analysis_used))
+                      .replace("{limit}", String(usage.analysis_limit + usage.analysis_reward))
+                    }
+                  </p>
+                  {usage.share_reward_enabled && (
+                    <p className="text-xs text-center text-blue-500">
+                      {usage.share_rewards_used_today >= usage.max_share_rewards_per_day
+                        ? t.chatInput.shareExhaustedHint
+                        : t.chatInput.shareRewardHint.replace("{remaining}", String(usage.max_share_rewards_per_day - usage.share_rewards_used_today))
+                      }
+                    </p>
+                  )}
+                </div>
               )}
             </>
           )}

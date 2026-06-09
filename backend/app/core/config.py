@@ -58,5 +58,9 @@ class Settings:
     ENABLE_SHARE_REWARD: bool = os.getenv("ENABLE_SHARE_REWARD", "false").lower() == "true"
     MAX_SHARE_REWARDS_PER_DAY: int = int(os.getenv("MAX_SHARE_REWARDS_PER_DAY", "2"))
 
+    # ── 反馈奖励（V1.3） ──
+    ENABLE_FEEDBACK_REWARD: bool = os.getenv("ENABLE_FEEDBACK_REWARD", "false").lower() == "true"
+    MAX_FEEDBACK_REWARDS_PER_DAY: int = int(os.getenv("MAX_FEEDBACK_REWARDS_PER_DAY", "1"))
+
 
 settings = Settings()
