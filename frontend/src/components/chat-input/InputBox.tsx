@@ -150,6 +150,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
     setScreenshotError(null);
     setExtracting(true);
     track("image_analysis_started", { file_count: files.length });
+    const ocrStartTime = Date.now();
 
     const hadText = text.trim().length > 0;
 
@@ -158,6 +159,7 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
       const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
       const compressed = await Promise.all(sorted.map(compressImage));
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, getAnalyticsUserId());
+      track("image_analysis_success", { duration_ms: Date.now() - ocrStartTime, file_count: files.length });
 
       if (hadText) {
         // Append OCR text to textarea with separator (same as multi-screenshot)

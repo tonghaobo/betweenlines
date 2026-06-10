@@ -108,6 +108,7 @@ type EventName =
   | "relationship_selected"
   | "usage_limit_hit"
   | "image_analysis_started"
+  | "image_analysis_success"
   | "share_clicked"
   | "share_image_generated"
   | "share_succeeded"

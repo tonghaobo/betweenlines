@@ -196,12 +196,14 @@ export function ChatInput({ onSubmit, isLoading, initialText = "", relationshipT
     setExtracting(true);
 
     track("image_analysis_started", { file_count: sorted.length });
+    const ocrStartTime = Date.now();
 
     try {
       // Compress images before upload (reduces model processing time)
       const compressed = await Promise.all(sorted.map(compressImage));
       const anonymousUserId = getAnalyticsUserId();
       const result: ScreenshotAnalysisResponse = await analyzeScreenshot(compressed, anonymousUserId);
+      track("image_analysis_success", { duration_ms: Date.now() - ocrStartTime, file_count: sorted.length });
       // Use callback forms to ensure latest state
       setExtractedText((prev) => {
         const merged = prev ? `${prev}\n---\n${result.extracted_text}` : result.extracted_text;

@@ -368,6 +368,7 @@ VALID_EVENTS = {
     "page_view", "analysis_created", "analysis_success",
     "reply_generated", "reply_used", "feedback_given", "return_visit",
     "relationship_selected", "usage_limit_hit", "image_analysis_started",
+    "image_analysis_success",
     "share_clicked", "share_image_generated", "share_succeeded", "share_cancelled",
     "share_reward_granted", "share_reward_limit_hit",
 }
@@ -488,6 +489,21 @@ def get_metrics() -> dict:
         """).fetchone()[0]
         avg_analysis_duration_ms = round(duration_row) if duration_row else 0
 
+        # Avg OCR (screenshot text extraction) duration
+        ocr_duration_row = cursor.execute("""
+            SELECT AVG(CAST(json_extract(properties, '$.duration_ms') AS REAL))
+            FROM events
+            WHERE event_name = 'image_analysis_success'
+              AND properties LIKE '%duration_ms%'
+              AND CAST(json_extract(properties, '$.duration_ms') AS REAL) > 0
+        """).fetchone()[0]
+        avg_ocr_duration_ms = round(ocr_duration_row) if ocr_duration_row else 0
+
+        # Total image analyses
+        total_image_analyses = cursor.execute(
+            "SELECT COUNT(*) FROM events WHERE event_name = 'image_analysis_success'"
+        ).fetchone()[0]
+
         # Share conversion rate: share_succeeded / share_clicked
         share_clicked_count = cursor.execute(
             "SELECT COUNT(*) FROM events WHERE event_name = 'share_clicked'"
@@ -502,10 +518,12 @@ def get_metrics() -> dict:
         "d1_retention": d1_retention,
         "d7_retention": d7_retention,
         "total_analyses": total_analyses,
+        "total_image_analyses": total_image_analyses,
         "helpful_rate": helpful_rate,
         "reply_adoption_rate": reply_adoption_rate,
         "analysis_count_per_user": analysis_count_per_user,
         "avg_analysis_duration_ms": avg_analysis_duration_ms,
+        "avg_ocr_duration_ms": avg_ocr_duration_ms,
         "share_conversion_rate": share_conversion_rate,
         "share_clicked_count": share_clicked_count,
         "share_succeeded_count": share_succeeded_count,

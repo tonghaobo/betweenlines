@@ -10,10 +10,12 @@ interface Metrics {
   d1_retention: number;
   d7_retention: number;
   total_analyses: number;
+  total_image_analyses: number;
   helpful_rate: number;
   reply_adoption_rate: number;
   analysis_count_per_user: number;
   avg_analysis_duration_ms: number;
+  avg_ocr_duration_ms: number;
   share_conversion_rate: number;
   share_clicked_count: number;
   share_succeeded_count: number;
@@ -102,6 +104,12 @@ export default function MetricsPage() {
       desc: t.metrics.avgAnalysisDurationDesc,
       value: formatDuration(metrics.avg_analysis_duration_ms),
       target: "< 30s",
+    },
+    {
+      label: t.metrics.avgOcrDuration,
+      desc: t.metrics.avgOcrDurationDesc,
+      value: formatDuration(metrics.avg_ocr_duration_ms),
+      target: "< 10s",
     },
     {
       label: t.metrics.shareConversionRate,

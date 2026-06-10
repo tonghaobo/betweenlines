@@ -117,10 +117,12 @@ class MetricsResponse(BaseModel):
     d1_retention: float = 0
     d7_retention: float = 0
     total_analyses: int = 0
+    total_image_analyses: int = 0
     helpful_rate: float = 0
     reply_adoption_rate: float = 0
     analysis_count_per_user: float = 0
     avg_analysis_duration_ms: int = 0
+    avg_ocr_duration_ms: int = 0
     share_conversion_rate: float = 0
     share_clicked_count: int = 0
     share_succeeded_count: int = 0
