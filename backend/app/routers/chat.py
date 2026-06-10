@@ -1,4 +1,5 @@
 import time
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Query
 from app.schemas.chat import (
@@ -174,7 +175,18 @@ async def analyze_screenshot(
     """上传聊天截图（支持多张），提取文字并返回供用户确认。
     
     Note: OCR extraction does NOT consume daily quota — only the final analysis step does.
+    
+    Quota check: if user is at limit, block immediately to avoid wasting OCR time + user effort.
     """
+    # ── Quota check (check-only, no increment) ──
+    usage_info = get_usage_info(anonymous_user_id)
+    effective_limit = usage_info["analysis_limit"] + usage_info["analysis_reward"]
+    if usage_info["analysis_used"] >= effective_limit:
+        raise HTTPException(
+            status_code=429,
+            detail="daily_limit_reached",
+        )
+
     # ── Validate file count ──
     if len(files) > settings.MAX_SCREENSHOTS_PER_REQUEST:
         raise HTTPException(
@@ -210,13 +222,20 @@ async def analyze_screenshot(
     logger.info(f"Screenshot upload: {len(files)} file(s), total_size={total_size}")
 
     try:
-        extracted_parts: list[str] = []
-        for i, (image_bytes, content_type) in enumerate(file_data):
+        # Process screenshots in parallel (each one calls the vision API independently)
+        async def process_one(idx: int, image_bytes: bytes, content_type: str) -> tuple[int, str | None]:
             text = await service.extract_text_from_screenshot(image_bytes, content_type)
             if text and len(text.strip()) >= 10:
-                extracted_parts.append(text.strip())
-            else:
-                logger.warning(f"Screenshot {i + 1}: insufficient text extracted")
+                return (idx, text.strip())
+            logger.warning(f"Screenshot {idx + 1}: insufficient text extracted")
+            return (idx, None)
+
+        results = await asyncio.gather(*[
+            process_one(i, image_bytes, ct) for i, (image_bytes, ct) in enumerate(file_data)
+        ])
+
+        # Sort by original order and collect valid texts
+        extracted_parts = [text for _, text in sorted(results, key=lambda r: r[0]) if text]
 
         if not extracted_parts:
             raise HTTPException(

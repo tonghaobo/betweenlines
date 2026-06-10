@@ -27,9 +27,38 @@ async def lifespan(app: FastAPI):
         logger.info("Database initialized")
     except Exception as e:
         logger.warning(f"Database init skipped: {e}")
-    
+
+    # Warm-up: establish connection to Doubao API and pre-warm the model.
+    # This cuts ~5-10s from the first user request (TCP+TLS + model cold start).
+    async def _warmup():
+        try:
+            import httpx, os, time
+            api_key = os.getenv("OPENAI_API_KEY", "")
+            base_url = os.getenv("OPENAI_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+            model = os.getenv("TEXT_MODELS", "doubao-seed-2-0-mini-260428").split(",")[0].strip()
+            if not api_key:
+                return
+
+            t0 = time.time()
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "max_tokens": 1, "temperature": 0,
+                    },
+                )
+            logger.info(f"API warm-up completed in {time.time()-t0:.1f}s (status={resp.status_code})")
+        except Exception as e:
+            logger.info(f"API warm-up skipped (non-blocking): {e}")
+
+    import asyncio
+    asyncio.create_task(_warmup())
+
     yield
-    
+
     logger.info("Shutting down BetweenLines API...")
 
 

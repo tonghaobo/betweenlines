@@ -345,6 +345,42 @@ class DoubaoService:
     async def extract_text_from_screenshot(self, image_bytes: bytes, content_type: str = "image/png") -> str:
         """使用多模态模型从聊天截图中提取文字，支持多模型自动切换"""
         from app.core.config import settings
+        from PIL import Image
+        import io as io_module
+
+        t_total = time.time()
+
+        # ── Compress image before encoding (reduce payload + API latency) ──
+        # Only compress large images; skip small ones to avoid unnecessary overhead
+        t0 = time.time()
+        original_size = len(image_bytes)
+        compress_threshold = 300 * 1024  # 300KB — only compress images above this
+        if original_size > compress_threshold:
+            try:
+                img = Image.open(io_module.BytesIO(image_bytes))
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                # Resize if larger than 1200px on either axis
+                max_dim = 1200
+                if img.width > max_dim or img.height > max_dim:
+                    ratio = max_dim / max(img.width, img.height)
+                    img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+                # Save as JPEG (much smaller than PNG for screenshots)
+                buf = io_module.BytesIO()
+                img.save(buf, format="JPEG", quality=85, optimize=True)
+                compressed = buf.getvalue()
+                t_compress = time.time() - t0
+                logger.info(
+                    f"Image compressed: {original_size}B → {len(compressed)}B "
+                    f"({len(compressed)/max(original_size,1)*100:.0f}%) in {t_compress:.2f}s"
+                )
+                image_bytes = compressed
+                content_type = "image/jpeg"
+            except Exception as e:
+                logger.info(f"Image compression skipped (error): {e}")
+        else:
+            logger.info(f"Image compression skipped: {original_size}B below {compress_threshold}B threshold")
+
         t_encode_start = time.time()
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
         t_encode = time.time() - t_encode_start
