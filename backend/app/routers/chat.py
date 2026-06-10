@@ -259,11 +259,13 @@ async def submit_feedback(request: FeedbackRequest):
             if analysis_data:
                 try:
                     from app.services.storage import save_good_case
+                    quality_reason = ",".join(request.reason) if request.reason else ""
                     save_good_case(
                         analysis_data["features"],
                         analysis_data["relationship_type"],
                         analysis_data["analysis_json"],
                         analysis_data["language"],
+                        quality_reason,
                     )
                 except Exception as e:
                     logger.warning(f"Failed to save good case: {e}")

@@ -70,59 +70,29 @@ Strictly prohibited:
 
 Output pure JSON only, do NOT wrap in markdown code blocks."""
 
-# ── Static few-shot examples (embedded in every prompt for consistent quality) ──
+# ── Static few-shot examples (compact, quality reference only) ──
 
-_FEWSHOT_ZH = """=== 优秀分析示例 ===
+_FEWSHOT_ZH = """=== Few-Shot 质量参考 ===
 
 示例1：
-输入：
-他: 今天加班好累啊
-我: 辛苦了，晚饭吃了吗
-他: 还没，准备点外卖
-我: 我也没吃，一起点？
-
-理想输出：
-{"chat_status":"积极互动","analysis":"1.对方主动分享当前状态（'加班好累'），属于自我表露，互动意愿良好。2.用户顺势关心+提出共同行动（'一起点'），话题从抱怨自然过渡到行动邀约，转换流畅。3.对方'准备点外卖'而非结束对话（如'先忙了'），说明愿意继续交流。","issues":[],"risks":[],"reply_suggestions":{"natural":"你想吃啥？我可以推荐几家附近的","humorous":"外卖小哥又要奔波了哈哈，快点点吧别饿着","mature":"先填饱肚子，其他事等会再聊"},"timing_advice":"对方未吃饭且愿意聊，建议现在立即回复，趁热打铁"}
+输入：他: 今天加班好累啊 / 我: 辛苦了，晚饭吃了吗 / 他: 还没，准备点外卖 / 我: 我也没吃，一起点？
+输出：{"chat_status":"积极互动","analysis":"1.对方主动分享状态（'加班好累'），自我表露=互动意愿。2.用户顺势关心+提出共同行动（'一起点'），转换流畅。3.对方'准备点外卖'而非结束对话，说明愿意继续。","issues":[],"risks":[],"reply_suggestions":{"natural":"你想吃啥？我可以推荐几家附近的","humorous":"外卖小哥又要奔波了哈哈，快点点吧","mature":"先填饱肚子，其他事等会再聊"},"timing_advice":"对方愿意聊，建议立即回复"}
 
 示例2：
-输入：
-我: 周末有什么安排吗
-他: 没有
-我: 最近有部电影还不错
-他: 哦
-我: 你喜欢看电影吗
-他: 还行
+输入：我: 周末有什么安排吗 / 他: 没有 / 我: 最近有部电影还不错 / 他: 哦 / 我: 你喜欢看电影吗 / 他: 还行
+输出：{"chat_status":"偏冷淡","analysis":"1.对方连续3条单字/双字回复（'没有''哦''还行'），典型的敷衍模式。2.用户连续追问3次，对方均未延伸话题。3.零表情/零语气词，情绪反馈极弱。","issues":["用户连续追问给对方压力","话题未引起对方兴趣"],"risks":["继续追问可能让对方更冷淡","可能产生负面印象"],"reply_suggestions":{"natural":"好的，那你先忙，有空再聊","humorous":"看来今天不在状态哈哈，改天约","mature":"了解，不打扰你了，有空联系"},"timing_advice":"立即停止追问，等对方主动开启话题"}
+==="""
 
-理想输出：
-{"chat_status":"偏冷淡","analysis":"1.对方连续3条回复极短（'没有''哦''还行'），每条约1-3字，属于典型的敷衍模式。2.用户连续追问3次（安排→电影→喜好），对方均未延伸话题，说明当前对方对话兴趣较低。3.对方未使用表情或语气词，情绪反馈极弱。","issues":["用户连续追问给对方压力","对方可能正在忙或不方便聊天","话题未引起对方兴趣"],"risks":["继续追问可能导致对方更冷淡","可能产生'烦人'的负面印象"],"reply_suggestions":{"natural":"好的，那你先忙，有空再聊","humorous":"看来你今天不在状态哈哈，改天约","mature":"了解，不打扰你了，有空联系"},"timing_advice":"建议立即停止追问。等对方主动开启话题（或隔天再发起新话题），给彼此空间"}
-
-=== 示例结束，请参照上述质量水平进行分析 ==="""
-
-_FEWSHOT_EN = """=== Excellent Analysis Examples ===
+_FEWSHOT_EN = """=== Few-Shot Quality Reference ===
 
 Example 1:
-Input:
-him: worked overtime today, so tired
-me: that's rough, did you eat dinner yet
-him: not yet, gonna order takeout
-me: me neither, order together?
-
-Ideal output:
-{"chat_status":"engaged","analysis":"1.The other person actively self-discloses ('so tired'), signaling willingness to engage. 2.User shifts from empathy to proposing joint action ('order together'), converting complaint into opportunity smoothly. 3.'Gonna order takeout' (rather than 'gotta go') suggests openness to continue.","issues":[],"risks":[],"reply_suggestions":{"natural":"What are you in the mood for? I can recommend a few nearby spots","humorous":"The delivery guy's gonna be busy today haha, order quick before you starve","mature":"Let's eat first, we can talk about other things later"},"timing_advice":"Reply now while the conversation is warm and the other person is responsive"}
+Input: him: worked overtime today, so tired / me: that's rough, did you eat dinner / him: not yet, gonna order takeout / me: me neither, order together?
+Output: {"chat_status":"engaged","analysis":"1.Other person self-discloses ('so tired'), signaling engagement. 2.User shifts from empathy to joint action ('order together'), a smooth transition. 3.'Gonna order takeout' (vs 'gotta go') shows openness to continue.","issues":[],"risks":[],"reply_suggestions":{"natural":"What are you in the mood for? I can recommend nearby","humorous":"The delivery guy's gonna be busy haha, order quick","mature":"Let's eat first, other things can wait"},"timing_advice":"Reply now while the conversation is warm"}
 
 Example 2:
-Input:
-me: any plans for the weekend
-her: nope
-me: there's a good movie playing
-her: oh
-me: do you like watching movies
-her: kinda
-
-Ideal output:
-{"chat_status":"cold","analysis":"1.Three consecutive one-word replies ('nope''oh''kinda'), a clear pattern of disengagement. 2.User asks three successive questions (plans→movie→preferences), none of which elicit topic extension from the other party. 3.Zero emotional cues or emoji usage, extremely low engagement signal.","issues":["User's rapid-fire questions may feel pressuring","The other party may be busy or not in a chatting mood","Current topics fail to spark interest"],"risks":["Continued questioning may worsen the dynamic","Risk of being perceived as pushy or annoying"],"reply_suggestions":{"natural":"Alright, you seem busy — catch up another time","humorous":"Not your day today huh, no worries, talk later","mature":"Understood, I'll let you go. Reach out when you're free"},"timing_advice":"Stop initiating immediately. Wait for the other party to start the next conversation, or try again tomorrow with a different topic"}
-
-=== End of examples. Match this quality level in your analysis. ==="""
+Input: me: any plans for the weekend / her: nope / me: there's a good movie / her: oh / me: do you like movies / her: kinda
+Output: {"chat_status":"cold","analysis":"1.Three consecutive single-word replies ('nope''oh''kinda'), clear disengagement. 2.User asks three questions, none elicit topic extension. 3.Zero emotional cues, extremely low engagement.","issues":["Rapid-fire questions may feel pressuring","Topics fail to spark interest"],"risks":["Continued questioning may worsen dynamic","Perceived as pushy"],"reply_suggestions":{"natural":"Alright, you seem busy — catch up another time","humorous":"Not your day today huh, no worries","mature":"Understood, I'll let you go. Reach out when free"},"timing_advice":"Stop initiating, wait for the other party to start next time"}
+==="""
 
 # ── Relationship-specific prompt additions ──
 
@@ -190,10 +160,29 @@ SCREENSHOT_EXTRACT_PROMPT = """你是一个聊天截图文字提取助手。从�
 ..."""
 
 
+# Shared HTTP client with connection pooling for keep-alive across requests.
+# Eliminates ~200-500ms TCP+TLS handshake on every API call.
+_shared_http_client: httpx.AsyncClient | None = None
+
+def _get_http_client() -> httpx.AsyncClient:
+    """Get or create shared httpx client with connection pooling."""
+    global _shared_http_client
+    if _shared_http_client is None or _shared_http_client.is_closed:
+        _shared_http_client = httpx.AsyncClient(
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=20),
+            timeout=httpx.Timeout(30.0, connect=8.0),
+        )
+    return _shared_http_client
+
+
 class DoubaoService:
     def __init__(self):
         from app.core.config import settings
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+        self.client = AsyncOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_BASE_URL,
+            http_client=_get_http_client(),
+        )
         self.text_models = settings.TEXT_MODELS
         self.vision_models = settings.VISION_MODELS
         logger.info(f"Text models: {self.text_models}")
@@ -279,14 +268,20 @@ class DoubaoService:
 
     async def analyze_chat(self, chat_content: str, relationship_type: str = "romantic", language: str = "zh") -> ChatAnalysisResponse:
         from app.core.config import settings
+        t0_total = time.time()
+
+        # ── Build prompts (CPU only) ──
+        t0 = time.time()
         system_prompt = SYSTEM_PROMPT_EN if language == "en" else SYSTEM_PROMPT_ZH
         user_prompt = self._build_user_prompt(chat_content, relationship_type, language)
+        t_build = time.time() - t0
+        logger.info(f"[Timing] Prompt build: {t_build:.3f}s, system={len(system_prompt)}c, user={len(user_prompt)}c")
 
         last_error = None
         for model in self.text_models:
             try:
                 t_api_start = time.time()
-                logger.info(f"Trying text model: {model} (lang={language})")
+                logger.info(f"[Timing] Trying model: {model} (lang={language})")
                 response = await self.client.chat.completions.create(
                     model=model,
                     messages=[
@@ -295,22 +290,34 @@ class DoubaoService:
                     ],
                     temperature=settings.TEMPERATURE,
                     max_tokens=settings.MAX_TOKENS,
+                    timeout=20.0,  # Per-model timeout to prevent hanging
                 )
 
-                t_api_end = time.time()
+                t_api = time.time() - t_api_start
                 content = response.choices[0].message.content
                 if not content:
                     raise ValueError("Model returned empty response")
 
-                logger.info(f"Text model {model} succeeded in {(t_api_end - t_api_start):.1f}s, output tokens={len(content)}")
-                return self._parse_response(content, language)
+                # ── Parse response ──
+                t0 = time.time()
+                result = self._parse_response(content, language)
+                t_parse = time.time() - t0
+
+                t_total = time.time() - t0_total
+                logger.info(
+                    f"[Timing] {model} done: api={t_api:.1f}s, parse={t_parse:.3f}s, "
+                    f"total={t_total:.1f}s, input_tokens={response.usage.prompt_tokens if response.usage else '?'}, "
+                    f"output_tokens={response.usage.completion_tokens if response.usage else '?'}"
+                )
+                return result
 
             except Exception as e:
                 last_error = e
+                t_elapsed = time.time() - t0_total
                 if self._is_quota_error(e) and model != self.text_models[-1]:
-                    logger.warning(f"Text model {model} quota error, trying next: {str(e)}")
+                    logger.warning(f"[Timing] {model} quota error @ {t_elapsed:.1f}s, trying next: {str(e)[:80]}")
                     continue
-                logger.error(f"Text model {model} error: {str(e)}")
+                logger.error(f"[Timing] {model} error @ {t_elapsed:.1f}s: {str(e)[:120]}")
                 raise
 
         # All text models exhausted
@@ -356,6 +363,7 @@ class DoubaoService:
                         ],
                         temperature=settings.VISION_TEMPERATURE,
                         max_tokens=settings.VISION_MAX_TOKENS,
+                        timeout=20.0,
                     )
 
                     t_api = time.time() - t_api_start
@@ -383,6 +391,8 @@ class DoubaoService:
 
     def _extract_chat_features(self, chat_content: str) -> dict:
         """Extract structured features from chat text for AI reference. Pure CPU, <1ms."""
+        import re
+
         lines = [l.strip() for l in chat_content.split('\n') if l.strip()]
         user_msgs = [l for l in lines if l.startswith(('我:', '我：'))]
         other_msgs = [l for l in lines if l.startswith(('他:', '他：', '她:', '她：'))]
@@ -390,18 +400,64 @@ class DoubaoService:
         avg_user_len = round(sum(len(m) for m in user_msgs) / max(len(user_msgs), 1), 1)
         avg_other_len = round(sum(len(m) for m in other_msgs) / max(len(other_msgs), 1), 1)
 
-        other_questions = sum(1 for m in other_msgs if '?' in m or '？' in m or '吗' in m)
+        # --- Emoji / emoticon detection ---
+        emoji_pattern = re.compile(
+            r'[\U0001F300-\U0001F9FF]'       # Emoticons, symbols, pictographs
+            r'|[\u2600-\u27BF]'               # Misc symbols
+            r'|[\uFE00-\uFE0F]'               # Variation selectors
+            r'|[\U0001FA00-\U0001FAFF]'       # Extended-A
+            r'|\[[\u4e00-\u9fff\w]+\]',        # Chinese bracket emoji [笑哭]
+            re.UNICODE,
+        )
+        other_emoji_count = sum(len(emoji_pattern.findall(m)) for m in other_msgs)
+        user_emoji_count = sum(len(emoji_pattern.findall(m)) for m in user_msgs)
+
+        # --- Short-reply ratio (≤3 chars after stripping prefix) ---
+        def _strip_prefix(msg: str) -> str:
+            return re.sub(r'^(他|她|我)\s*[：:]\s*', '', msg)
+
+        other_short = sum(1 for m in other_msgs if len(_strip_prefix(m)) <= 3)
+        other_short_ratio = round(other_short / max(len(other_msgs), 1) * 100, 1)
+
+        # --- Sentiment indicator word analysis ---
+        positive_words = ['哈哈', '嘻嘻', '开心', '好呀', '嗯嗯', '好的呀',
+                          '太好了', '棒', '喜欢', '期待', '嘿嘿', '没错']
+        negative_words = ['嗯', '哦', '好吧', '随便', '算了', '行吧',
+                          '知道了', '无所谓', '随便你', '哦哦']
+        pos_count = sum(1 for m in other_msgs if any(w in m for w in positive_words))
+        neg_count = sum(1 for m in other_msgs if any(w in m for w in negative_words))
+
+        # --- Topic coherence: does other party reference prior topics? ---
+        topic_ref_words = ['刚才', '刚刚', '那个', '这个', '你说的', '之前', '上次']
+        topic_refs = sum(1 for m in other_msgs if any(w in m for w in topic_ref_words))
+        topic_coherence = round(topic_refs / max(len(other_msgs), 1) * 100, 1)
+
+        # --- Question ratio (added '呢' for rhetorical questions) ---
+        other_questions = sum(1 for m in other_msgs if '?' in m or '？' in m or '吗' in m or '呢' in m)
         other_question_ratio = round(other_questions / max(len(other_msgs), 1) * 100, 1)
 
+        # --- Notable patterns ---
         patterns = []
         if avg_other_len <= 5 and len(other_msgs) >= 2:
-            patterns.append("对方回复极短，可能缺乏兴趣或正在忙")
+            patterns.append(f"对方回复极短(均长{avg_other_len}字)，可能缺乏兴趣或正在忙")
+        if other_short_ratio >= 50 and len(other_msgs) >= 2:
+            patterns.append(f"对方{other_short_ratio}%回复≤3字，敷衍信号较强")
         if avg_user_len >= avg_other_len * 3 and len(user_msgs) >= 2 and len(other_msgs) >= 2:
             patterns.append("用户发送显著长于对方，话题可能由用户单方面推动")
         if other_question_ratio >= 40:
-            patterns.append("对方积极提问，互动意愿较高")
+            patterns.append(f"对方积极提问(问句占比{other_question_ratio}%)，互动意愿较高")
         if len(user_msgs) >= len(other_msgs) * 3 and len(other_msgs) >= 2:
             patterns.append("用户发送频率远高于对方，注意节奏控制")
+        if other_emoji_count >= len(other_msgs) * 0.4 and len(other_msgs) >= 2:
+            patterns.append(f"对方频繁使用表情({other_emoji_count}次)，情绪表达丰富")
+        if pos_count >= len(other_msgs) * 0.5 and len(other_msgs) >= 2:
+            patterns.append("对方积极情绪词较多(哈哈/好呀/嗯嗯等)，氛围偏正面")
+        if neg_count >= len(other_msgs) * 0.3 and len(other_msgs) >= 2:
+            patterns.append("对方使用了冷淡/敷衍用词(嗯/哦/好吧等)，需注意氛围")
+        if topic_coherence >= 30:
+            patterns.append("对方积极回应之前话题，交流有连贯性")
+        if user_emoji_count >= len(user_msgs) * 0.3 and len(user_msgs) >= 2:
+            patterns.append("用户主动使用表情调节氛围，沟通风格较轻松")
 
         return {
             'total_messages': len(lines),
@@ -411,6 +467,12 @@ class DoubaoService:
             'avg_user_len': avg_user_len,
             'avg_other_len': avg_other_len,
             'other_question_ratio': other_question_ratio,
+            'other_emoji_count': other_emoji_count,
+            'user_emoji_count': user_emoji_count,
+            'other_short_ratio': other_short_ratio,
+            'sentiment_pos': pos_count,
+            'sentiment_neg': neg_count,
+            'topic_coherence': topic_coherence,
             'notable_patterns': '; '.join(patterns) if patterns else '无明显异常模式',
         }
 
@@ -418,6 +480,7 @@ class DoubaoService:
         """Fetch recent user-approved good cases from DB and format as few-shot examples.
 
         Only includes extracted features (not raw chat content) per privacy policy.
+        Now includes quality_reason (why user found it helpful) and enhanced features.
         Returns empty string if no cases available or storage fails (non-blocking).
         """
         try:
@@ -427,27 +490,53 @@ class DoubaoService:
                 return ""
 
             zh = language == "zh"
-            parts = ["\n=== 用户认可的优秀分析案例（请参照此质量水平）===\n" if zh else
-                     "\n=== User-Approved Quality Examples (match this quality) ===\n"]
+            header = ("\n=== 用户认可的优秀分析案例（请参照此质量水平）===\n" if zh else
+                      "\n=== User-Approved Quality Examples (match this quality) ===\n")
+            parts = [header]
+
             for i, case in enumerate(cases):
                 label = f"案例{i + 1}" if zh else f"Case {i + 1}"
+                sentiment_info = ""
+                if zh:
+                    sentiment_info = (
+                        f", 表情{case.get('other_emoji_count', 0)}次"
+                        f", 简短回复比{case.get('other_short_ratio', 0)}%"
+                        f", 情绪词: 积极{case.get('sentiment_pos', 0)}/消极{case.get('sentiment_neg', 0)}"
+                        f", 话题连贯性{case.get('topic_coherence', 0)}%"
+                    )
+                else:
+                    sentiment_info = (
+                        f", emoji {case.get('other_emoji_count', 0)}"
+                        f", short-reply {case.get('other_short_ratio', 0)}%"
+                        f", sentiment pos/neg {case.get('sentiment_pos', 0)}/{case.get('sentiment_neg', 0)}"
+                        f", coherence {case.get('topic_coherence', 0)}%"
+                    )
+
                 if zh:
                     parts.append(
-                        f"{label}：对话特征: {case['total_messages']}条消息, "
+                        f"{label}：{case['total_messages']}条消息, "
                         f"对方{case['other_msgs']}条(均长{case['avg_other_len']}字), "
                         f"用户{case['user_msgs']}条(均长{case['avg_user_len']}字), "
-                        f"问句比{case['other_question_ratio']}%, "
+                        f"问句比{case['other_question_ratio']}%{sentiment_info}, "
                         f"模式: {case['notable_patterns']}"
                     )
                 else:
                     parts.append(
-                        f"{label}: Features: {case['total_messages']} msgs, "
+                        f"{label}: {case['total_messages']} msgs, "
                         f"other {case['other_msgs']} msgs (avg {case['avg_other_len']} chars), "
                         f"user {case['user_msgs']} msgs (avg {case['avg_user_len']} chars), "
-                        f"question ratio {case['other_question_ratio']}%, "
+                        f"Q ratio {case['other_question_ratio']}%{sentiment_info}, "
                         f"pattern: {case['notable_patterns']}"
                     )
+
+                # Include quality reason if available (why user found it helpful)
+                quality_reason = case.get('quality_reason', '')
+                if quality_reason:
+                    reason_label = "用户认可理由" if zh else "User-approved reason"
+                    parts.append(f"{reason_label}：{quality_reason}")
+
                 parts.append(f"{'优秀输出' if zh else 'Excellent output'}：\n{case['analysis_json']}\n")
+
             return "\n".join(parts)
         except Exception as e:
             logger.warning(f"Failed to fetch good cases for few-shot: {e}")
@@ -457,7 +546,21 @@ class DoubaoService:
         relationship_extra = RELATIONSHIP_PROMPTS.get(relationship_type, RELATIONSHIP_PROMPTS["other"])
         features = self._extract_chat_features(chat_content)
         fewshot_static = _FEWSHOT_EN if language == "en" else _FEWSHOT_ZH
-        fewshot_dynamic = self._get_dynamic_fewshot(relationship_type, language)
+        fewshot_dynamic = self._get_dynamic_fewshot(relationship_type, language, limit=1)
+
+        # Feature summary line for the prompt (compact)
+        sentiment_line = (
+            f"Sentiment: pos={features['sentiment_pos']}/neg={features['sentiment_neg']}, "
+            f"coherence={features['topic_coherence']}%"
+            if language == "en" else
+            f"情绪词: 积极{features['sentiment_pos']}个/消极{features['sentiment_neg']}个, "
+            f"话题连贯性{features['topic_coherence']}%"
+        )
+        emoji_line = (
+            f"Emoji: other={features['other_emoji_count']}, user={features['user_emoji_count']}"
+            if language == "en" else
+            f"表情使用: 对方{features['other_emoji_count']}次/用户{features['user_emoji_count']}次"
+        )
 
         if language == "en":
             return f"""{relationship_extra}
@@ -469,41 +572,91 @@ Chat ({features['total_messages']} messages, ~{features['total_rounds']} rounds)
 {chat_content}
 ---
 
-Key features (for reference, to save analysis time):
-- Other party: {features['other_msgs']} msgs (avg {features['avg_other_len']} chars), User: {features['user_msgs']} msgs (avg {features['avg_user_len']} chars)
-- Other party question ratio: {features['other_question_ratio']}%
-- Patterns: {features['notable_patterns']}
+Key features: other {features['other_msgs']}msgs(avg{features['avg_other_len']}c,{features['other_short_ratio']}%short), user {features['user_msgs']}msgs(avg{features['avg_user_len']}c), Q%={features['other_question_ratio']}%, {emoji_line}, {sentiment_line}
+Patterns: {features['notable_patterns']}
 
-Output JSON (no markdown):
-{{"chat_status":"engaged|normal|polite|cold|high risk","analysis":"3-5 specific observations with text evidence","issues":["specific problem 1","specific problem 2"],"risks":[],"reply_suggestions":{{"natural":"reply echoing latest message","humorous":"reply echoing latest message","mature":"reply echoing latest message"}},"timing_advice":"actionable advice"}}
-
-Quality rules:
-- analysis: every sentence must reference the original text, no vague statements
-- reply_suggestions: must echo the latest chat messages, ready to send
-- timing_advice: must be specific and actionable, no cliché like "keep the current pace"
-- Do NOT judge feelings / PUA / fabricate facts / use templated phrases"""
+Output JSON only (no markdown). Follow system prompt quality rules."""
         return f"""{relationship_extra}
 
 {fewshot_static}
 {fewshot_dynamic}
-聊天记录（共{features['total_messages']}条消息，{features['total_rounds']}轮对话）：
+聊天记录（{features['total_messages']}条/{features['total_rounds']}轮）：
 ---
 {chat_content}
 ---
 
-关键特征（供参考，节省分析时间）：
-- 对方发送{features['other_msgs']}条（均长{features['avg_other_len']}字），用户发送{features['user_msgs']}条（均长{features['avg_user_len']}字）
-- 对方问句占比：{features['other_question_ratio']}%
-- 显著模式：{features['notable_patterns']}
+关键特征：对方{features['other_msgs']}条（均长{features['avg_other_len']}字,{features['other_short_ratio']}%短回复），用户{features['user_msgs']}条（均长{features['avg_user_len']}字），问句比{features['other_question_ratio']}%，{emoji_line}，{sentiment_line}
+模式：{features['notable_patterns']}
 
-输出JSON(不要markdown包裹):
-{{"chat_status":"积极互动|普通互动|礼貌回应|偏冷淡|对话风险较高","analysis":"3-5句具体分析，每句引用原文","issues":["具体问题1","具体问题2"],"risks":[],"reply_suggestions":{{"natural":"回复，呼应最新消息","humorous":"回复，呼应最新消息","mature":"回复，呼应最新消息"}},"timing_advice":"可操作的具体建议"}}
+输出纯JSON（不要markdown），遵守系统指令中的质量要求。"""
 
-质量要求：
-- analysis 每句话都要有原文支撑，禁止泛泛而谈
-- reply_suggestions 必须呼应聊天中最新的消息内容，可直接发送
-- timing_advice 必须具体可操作，禁止"保持节奏"等套话
-- 禁止判断喜欢/PUA/编造事实/模板化套话"""
+    def _check_analysis_quality(self, data: dict, language: str) -> list[str]:
+        """Post-hoc quality validation. Logs warnings for low-quality outputs.
+
+        Pure CPU, <1ms. Non-blocking — only logs warnings, never rejects output.
+        Returns list of warning messages for observability.
+        """
+        warnings = []
+        zh = language == "zh"
+
+        analysis = data.get("analysis", "")
+        if isinstance(analysis, list):
+            analysis = " ".join(str(a) for a in analysis)
+        analysis_str = str(analysis).lower()
+
+        # Check 1: Generic/template cliché phrases in analysis
+        generic_zh = ["祝你们越来越好", "保持当前", "祝你好运"]
+        generic_en = ["keep it up", "good luck"]
+        generic = generic_zh if zh else generic_en
+        for phrase in generic:
+            if phrase.lower() in analysis_str:
+                warnings.append(f"Generic phrase in analysis: '{phrase}'")
+
+        # Check 2: Does analysis reference specific chat lines?
+        has_quote = any(c in str(analysis) for c in ['"', '"', '「', '」', "'"])
+        has_specific_ref = (
+            ('条' in str(analysis) and any(c.isdigit() for c in str(analysis)))
+            or ('次' in str(analysis) and any(c.isdigit() for c in str(analysis)))
+            or ('轮' in str(analysis) and any(c.isdigit() for c in str(analysis)))
+            or ('句' in str(analysis))
+        ) if zh else (
+            ('time' in analysis_str or 'reply' in analysis_str)
+            and any(c.isdigit() for c in str(analysis))
+        )
+        if not (has_quote or has_specific_ref):
+            warnings.append("Analysis lacks specific text references or quotes")
+
+        # Check 3: Reply suggestions — are they the generic fallback?
+        suggestions = data.get("reply_suggestions", {})
+        fallback_zh = {
+            "natural": "可以自然地继续聊天。",
+            "humorous": "用轻松的方式回应。",
+            "mature": "保持稳重得体的交流。",
+        }
+        fallback_en = {
+            "natural": "Keep the conversation going naturally.",
+            "humorous": "Respond in a light-hearted way.",
+            "mature": "Maintain a composed and respectful tone.",
+        }
+        fallbacks = fallback_zh if zh else fallback_en
+        for style, content in suggestions.items():
+            if isinstance(content, str) and content.strip() == fallbacks.get(style, "").strip():
+                warnings.append(f"Reply '{style}' is generic fallback (no personalization)")
+
+        # Check 4: Vague timing advice
+        vague_zh = ["保持节奏", "顺其自然", "看情况"]
+        vague_en = ["keep the pace", "go with the flow", "play it by ear"]
+        vague = vague_zh if zh else vague_en
+        timing = data.get("timing_advice", "")
+        if isinstance(timing, str):
+            for phrase in vague:
+                if phrase.lower() in timing.lower():
+                    warnings.append(f"Vague timing advice: '{phrase}'")
+
+        if warnings:
+            logger.warning(f"Analysis quality issues ({len(warnings)}): {'; '.join(warnings)}")
+
+        return warnings
 
     def _parse_response(self, raw_json: str, language: str = "zh") -> ChatAnalysisResponse:
         # Clean markdown code block wrappers
@@ -581,6 +734,9 @@ Quality rules:
         raw_timing = data.get("timing_advice", "保持当前节奏。")
         if not raw_timing or not isinstance(raw_timing, str):
             raw_timing = "保持当前节奏。" if language == "zh" else "Keep the current pace."
+
+        # Post-hoc quality check (non-blocking, log-only)
+        self._check_analysis_quality(data, language)
 
         return ChatAnalysisResponse(
             chat_status=chat_status,

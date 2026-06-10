@@ -89,11 +89,12 @@ POST /api/v1/analyze
     │
     ├── 5. AI 分析
     │   └── DoubaoService.analyze_chat()
-    │       ├── 构建精简 System Prompt (~90 chars)
-    │       ├── 构建紧凑 User Prompt (一行 JSON schema)
-    │       ├── 多模型切换（配额耗尽自动换下一个）
-    │       ├── 调用豆包文本模型 (temperature=0.4)
-    │       └── 解析 JSON → ChatAnalysisResponse
+    │       ├── 增强特征提取（表情/情绪/连贯性检测，纯CPU <1ms）
+    │       ├── 构建精简 Prompt（System + User Prompt）
+    │       ├── 多模型切换（配额耗尽自动换下一个，20s 超时保护）
+    │       ├── 调用豆包文本模型 (temperature=0.5, max_tokens=900)
+    │       ├── 解析 JSON → ChatAnalysisResponse
+    │       └── 后验质量检查（检测模板化/泛泛而谈，日志告警）
     │
     ├── 6. 写入缓存（10min TTL）
     │   └── set_cached_result()
@@ -122,18 +123,19 @@ POST /api/v1/analyze
 - 输出格式：纯 JSON（禁止 markdown 包裹）
 
 **Few-Shot 学习**：
-- **静态示例**：2 个中英文对比示例（高质量 vs 低质量），嵌入式嵌入每次请求
-- **动态学习**：用户点击 👍 时，自动提取特征并保存为 `good_cases`，后续分析按关系类型匹配注入
-- **隐私安全**：仅存储统计特征（消息数、均长、问句比等），不存储聊天原文
+- **静态示例**：2 个中英文对比示例（高质量 vs 低质量），紧凑格式嵌入每次请求
+- **动态学习**：用户点击 👍 时，自动提取特征（含表情/情绪/连贯性等增强特征）并保存为 `good_cases`，后续分析按关系类型匹配注入（每次最多 1 条）
+- **隐私安全**：仅存储统计特征（消息数、均长、问句比、表情数、情绪词等），不存储聊天原文
 
 **文本分析流程**：
 ```python
 analyze_chat(chat_content: str) -> ChatAnalysisResponse
-    1. _extract_chat_features(chat_content) → 特征预提取（纯 CPU, <1ms）
-    2. _get_dynamic_fewshot(relationship_type) → 从 DB 加载用户认可案例
-    3. _build_user_prompt(chat_content) → 融入静态+动态 few-shot 示例
-    4. openai.chat.completions.create() → AI 调用
+    1. _extract_chat_features(chat_content) → 增强特征预提取（表情检测、情绪词分析、话题连贯性）
+    2. _get_dynamic_fewshot(relationship_type) → 从 DB 加载 1 条用户认可案例
+    3. _build_user_prompt(chat_content) → 融入静态+动态 few-shot + 增强特征摘要
+    4. openai.chat.completions.create(timeout=20s) → AI 调用（共享 HTTP 连接池）
     5. _parse_response(response) → 解析 JSON + 类型强制转换容错
+    6. _check_analysis_quality(data) → 后验质量检查（检测模板化/泛泛而谈/fallback 值）
 ```
 
 **截图 OCR 流程**：
@@ -232,6 +234,13 @@ CREATE TABLE IF NOT EXISTS good_cases (
     relationship_type TEXT NOT NULL,
     analysis_json TEXT NOT NULL,         -- AI 分析结果 JSON
     language TEXT DEFAULT 'zh',
+    quality_reason TEXT DEFAULT '',      -- 用户认可理由（从反馈 reason 提取）
+    other_emoji_count INTEGER DEFAULT 0, -- 对方表情使用次数
+    user_emoji_count INTEGER DEFAULT 0,  -- 用户表情使用次数
+    other_short_ratio REAL DEFAULT 0,    -- 对方短回复占比（≤3字）
+    sentiment_pos INTEGER DEFAULT 0,     -- 积极情绪词数量
+    sentiment_neg INTEGER DEFAULT 0,     -- 消极/敷衍词数量
+    topic_coherence REAL DEFAULT 0,      -- 话题连贯性（引用前文的占比%）
     usage_count INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );
@@ -246,7 +255,7 @@ CREATE TABLE IF NOT EXISTS good_cases (
 | `save_outcome(analysis_id, reply_used, outcome)` | 保存结果追踪 |
 | `get_outcome_stats()` | 返回 reply_adoption_rate / positive_outcome_rate |
 | `save_analysis_log(chat_length, chat_status, duration_ms, error)` | 保存分析日志 |
-| `save_good_case(features, relationship_type, analysis_json, language)` | 保存优质案例（仅特征，不含原文） |
+| `save_good_case(features, relationship_type, analysis_json, language)` | 保存优质案例（增强特征 + 用户认可理由） |
 | `get_good_cases(relationship_type, language, limit)` | 获取优质案例用于 Few-Shot 注入 |
 | `_prune_good_cases(max_cases=100)` | 自动剪枝，超出上限删最旧记录 |
 
@@ -308,8 +317,8 @@ CORS 中间件注册在最外层（最后 add），确保 OPTIONS 预检最先�
 | `OPENAI_BASE_URL` | `https://ark.cn-beijing.volces.com/api/v3` | API 地址 |
 | `TEXT_MODELS` | `doubao-seed-2-0-mini-260428,...` | 文本模型列表（质量优先+速度加权排名，见 `tests/benchmark_models.py`） |
 | `VISION_MODELS` | `doubao-1-5-vision-pro-32k-250115,...` | 视觉模型列表（同上，lite 不可用已移除） |
-| `TEMPERATURE` | 0.4 | 文本温度（降低以提升分析一致性） |
-| `MAX_TOKENS` | 700 | 文本最大 token（增加以容纳详细分析） |
+| `TEMPERATURE` | 0.5 | 文本温度（平衡一致性与创造性） |
+| `MAX_TOKENS` | 900 | 文本最大 token（足够 3-5 句分析 + 3 种回复建议） |
 | `VISION_TEMPERATURE` | 0.3 | OCR 温度（更保守） |
 | `VISION_MAX_TOKENS` | 2000 | OCR 最大 token |
 | `RATE_LIMIT_REQUESTS` | 20 | 每分钟请求数 |
@@ -424,6 +433,14 @@ class MetricsResponse(BaseModel):
 - 12 个聊天场景：积极互动、普通互动、冷淡、礼貌、高风险、初次搭话、对方主导、久未联系、单方面输出、微信风格、中英混合、深夜对话
 - 5 个边界条件：空输入、超长、违规内容、纯空白、单人聊天
 - 3 个杂项：正向/负向反馈、统计查询、健康检查
+
+### test_quality.py（新增）
+
+33 个单元测试，无需 API 调用，覆盖：
+- **特征提取**：13 个测试（表情检测、情绪词分析、短回复比、话题连贯性、边界情况）
+- **质量检查**：9 个测试（模板化检测、fallback 检测、模糊建议检测、非阻塞容错）
+- **解析响应**：9 个测试（JSON 解析、markdown 清理、状态映射、类型强转、缺失字段兜底）
+- **配置验证**：2 个测试（MAX_TOKENS 下限、TEMPERATURE 范围）
 
 ### test_prompt.py
 

@@ -149,6 +149,13 @@ def init_db():
                 relationship_type TEXT NOT NULL,
                 analysis_json TEXT NOT NULL,
                 language TEXT DEFAULT 'zh',
+                quality_reason TEXT DEFAULT '',
+                other_emoji_count INTEGER DEFAULT 0,
+                user_emoji_count INTEGER DEFAULT 0,
+                other_short_ratio REAL DEFAULT 0,
+                sentiment_pos INTEGER DEFAULT 0,
+                sentiment_neg INTEGER DEFAULT 0,
+                topic_coherence REAL DEFAULT 0,
                 usage_count INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT (datetime('now'))
             )
@@ -164,6 +171,13 @@ def init_db():
             ("avg_other_len", "REAL NOT NULL DEFAULT 0"),
             ("other_question_ratio", "REAL NOT NULL DEFAULT 0"),
             ("notable_patterns", "TEXT NOT NULL DEFAULT ''"),
+            ("quality_reason", "TEXT DEFAULT ''"),
+            ("other_emoji_count", "INTEGER DEFAULT 0"),
+            ("user_emoji_count", "INTEGER DEFAULT 0"),
+            ("other_short_ratio", "REAL DEFAULT 0"),
+            ("sentiment_pos", "INTEGER DEFAULT 0"),
+            ("sentiment_neg", "INTEGER DEFAULT 0"),
+            ("topic_coherence", "REAL DEFAULT 0"),
         ]:
             try:
                 cursor.execute(f"ALTER TABLE good_cases ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -556,12 +570,13 @@ def save_feedback_reward(anonymous_user_id: str) -> str:
 
 # ── Good Cases (Few-Shot Learning) ──
 
-def save_good_case(features: dict, relationship_type: str, analysis_json: str, language: str = "zh") -> int:
+def save_good_case(features: dict, relationship_type: str, analysis_json: str, language: str = "zh", quality_reason: str = "") -> int:
     """Save a high-quality analysis as a few-shot example. Returns the case ID.
 
     Called when user gives positive feedback (helpful=true) on an analysis.
     Only stores extracted features (not raw chat content) per privacy policy.
     Deduplication: by feature_hash to avoid storing near-identical patterns.
+    quality_reason: comma-separated reasons the user gave for finding it helpful.
     """
     import hashlib
     import json
@@ -585,8 +600,10 @@ def save_good_case(features: dict, relationship_type: str, analysis_json: str, l
             """INSERT INTO good_cases
                (feature_hash, total_messages, total_rounds, user_msgs, other_msgs,
                 avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
-                relationship_type, analysis_json, language)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                relationship_type, analysis_json, language, quality_reason,
+                other_emoji_count, user_emoji_count, other_short_ratio,
+                sentiment_pos, sentiment_neg, topic_coherence)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 feature_hash,
                 features.get("total_messages", 0),
@@ -600,6 +617,13 @@ def save_good_case(features: dict, relationship_type: str, analysis_json: str, l
                 relationship_type,
                 analysis_json,
                 language,
+                quality_reason,
+                features.get("other_emoji_count", 0),
+                features.get("user_emoji_count", 0),
+                features.get("other_short_ratio", 0.0),
+                features.get("sentiment_pos", 0),
+                features.get("sentiment_neg", 0),
+                features.get("topic_coherence", 0.0),
             ),
         )
         conn.commit()
@@ -616,30 +640,29 @@ def get_good_cases(relationship_type: str | None = None, language: str = "zh", l
 
     Returns cases most recently created, optionally filtered by relationship_type.
     Returns extracted features (not raw chat content) per privacy policy.
+    Includes enhanced features (emoji, sentiment, coherence) and quality_reason.
     Limits results to keep prompt lean.
     """
+    columns = ("id, total_messages, total_rounds, user_msgs, other_msgs, "
+               "avg_user_len, avg_other_len, other_question_ratio, notable_patterns, "
+               "relationship_type, analysis_json, language, usage_count, "
+               "quality_reason, other_emoji_count, user_emoji_count, "
+               "other_short_ratio, sentiment_pos, sentiment_neg, topic_coherence")
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         if relationship_type:
             rows = cursor.execute(
-                """SELECT id, total_messages, total_rounds, user_msgs, other_msgs,
-                          avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
-                          relationship_type, analysis_json, language, usage_count
-                   FROM good_cases
-                   WHERE relationship_type = ? AND language = ?
-                   ORDER BY created_at DESC
-                   LIMIT ?""",
+                f"SELECT {columns} FROM good_cases "
+                "WHERE relationship_type = ? AND language = ? "
+                "ORDER BY created_at DESC LIMIT ?",
                 (relationship_type, language, limit),
             ).fetchall()
         else:
             rows = cursor.execute(
-                """SELECT id, total_messages, total_rounds, user_msgs, other_msgs,
-                          avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
-                          relationship_type, analysis_json, language, usage_count
-                   FROM good_cases
-                   WHERE language = ?
-                   ORDER BY created_at DESC
-                   LIMIT ?""",
+                f"SELECT {columns} FROM good_cases "
+                "WHERE language = ? "
+                "ORDER BY created_at DESC LIMIT ?",
                 (language, limit),
             ).fetchall()
 

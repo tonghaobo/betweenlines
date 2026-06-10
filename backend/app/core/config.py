@@ -29,8 +29,8 @@ class Settings:
     # （如果 TEXT_MODELS 未设置，会自动从 OPENAI_MODEL 读取）
 
     # ── 请求参数 ──
-    TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.4"))
-    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "700"))
+    TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.5"))
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "900"))
     VISION_TEMPERATURE: float = float(os.getenv("VISION_TEMPERATURE", "0.3"))
     VISION_MAX_TOKENS: int = int(os.getenv("VISION_MAX_TOKENS", "2000"))
 
