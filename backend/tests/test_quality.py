@@ -167,24 +167,21 @@ class TestQualityCheck:
     """Test _check_analysis_quality method."""
 
     def test_good_quality_passes(self, service):
-        """Test that a well-written analysis passes all checks."""
+        """Test that a well-written (conversational style) analysis passes checks."""
         data = {
             "chat_status": "偏冷淡",
-            "analysis": '1.对方连续3条回复极短（"嗯""哦""好"），属于明显的敷衍模式。'
-                        '2.用户连续追问3次，对方均未延伸话题。',
+            "analysis": '你看他这三句——"嗯""哦""好"，加一起不到5个字，而且一次都没有把话题抛回来。'
+                        '不是今天心情不好，是典型的敷衍。',
             "issues": ["对方回复过短", "用户追问过密"],
-            "risks": ["可能产生厌烦感"],
+            "risks": ["继续追问可能让对方更冷淡"],
             "reply_suggestions": {
                 "natural": "那你先忙，有空再聊",
                 "humorous": "看来今天不在状态哈哈",
                 "mature": "了解，不打扰你了",
             },
-            "timing_advice": "建议暂停追问，等对方主动开启话题",
+            "timing_advice": "别回了，等她主动来找你。",
         }
         warnings = service._check_analysis_quality(data, "zh")
-        # Should have few or no warnings for good quality
-        # (may have warning about "specific references" since no digit+条 pattern)
-        # but at least should NOT have generic phrase / fallback / vague warnings
         for w in warnings:
             assert "Generic phrase" not in w
             assert "generic fallback" not in w
@@ -194,7 +191,7 @@ class TestQualityCheck:
         """Test that generic cliché phrases are flagged."""
         data = {
             "chat_status": "普通互动",
-            "analysis": "祝你们越来越好，保持当前的良好互动状态。",
+            "analysis": "祝你们越来越好，祝你好运。",
             "issues": [],
             "risks": [],
             "reply_suggestions": {
@@ -205,7 +202,7 @@ class TestQualityCheck:
             "timing_advice": "保持节奏即可。",
         }
         warnings = service._check_analysis_quality(data, "zh")
-        assert len(warnings) >= 3  # generic phrase + fallback suggestions + vague timing
+        assert len(warnings) >= 3  # 2 generic phrases + fallback suggestions + vague timing
 
     def test_fallback_reply_suggestions_detected(self, service):
         """Test that exact fallback suggestions are flagged."""
@@ -256,10 +253,11 @@ class TestQualityCheck:
                 "humorous": "哈哈好吧",
                 "mature": "好的，有空再聊",
             },
-            "timing_advice": "换个话题方向",
+            "timing_advice": "换个话题方向。",
         }
         warnings = service._check_analysis_quality(data, "zh")
         ref_warnings = [w for w in warnings if "specific text references" in w.lower()]
+        # This should trigger the reference check since there are no quotes or numbers
         assert len(ref_warnings) >= 1
 
     def test_analysis_with_quotes_passes(self, service):
@@ -469,10 +467,10 @@ class TestConfig:
     """Test that config changes are applied correctly."""
 
     def test_max_tokens_sufficient(self):
-        """Verify MAX_TOKENS >= 800 for sufficient output space."""
+        """Verify MAX_TOKENS >= 900 for sufficient output space."""
         from app.core.config import settings
-        assert settings.MAX_TOKENS >= 800, (
-            f"MAX_TOKENS should be >= 800 for sufficient output space, got {settings.MAX_TOKENS}"
+        assert settings.MAX_TOKENS >= 900, (
+            f"MAX_TOKENS should be >= 900 for sufficient output space, got {settings.MAX_TOKENS}"
         )
 
     def test_temperature_optimal(self):

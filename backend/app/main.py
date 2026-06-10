@@ -73,21 +73,41 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 async def root():
-    import platform
+    import subprocess
+    commit_hash = "unknown"
+    try:
+        commit_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            text=True,
+        ).strip()
+    except Exception:
+        pass
+
     return {
         "message": "BetweenLines API is running",
         "version": "0.1.0",
-        "python": platform.python_version(),
+        "commit": commit_hash,
     }
 
 
 @app.get("/health")
 async def health_check():
-    import platform
+    import subprocess
+    commit_hash = "unknown"
+    try:
+        commit_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            text=True,
+        ).strip()
+    except Exception:
+        pass
+
     return {
         "status": "healthy",
         "version": "0.1.0",
-        "python": platform.python_version(),
+        "commit": commit_hash,
     }
 
 
