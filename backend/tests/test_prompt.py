@@ -16,37 +16,31 @@ client = AsyncOpenAI(
     base_url=settings.OPENAI_BASE_URL,
 )
 
-SYSTEM_PROMPT = """你是一个专业的社交沟通分析助手。
+SYSTEM_PROMPT = """你是社交沟通分析专家。你的任务是基于聊天记录，客观分析双方互动质量，并给出贴合原文的回复建议。
 
-你的目标：
-帮助用户理解聊天状态，并给出自然沟通建议。
+分析步骤（请按顺序思考）：
+1. 整体感知：消息轮次、回复间隔、总体情绪基调
+2. 双方对比：各发言几条？谁主导话题？是否互相回应？
+3. 情绪识别：对方每句话背后的情绪（热情/平淡/回避/不耐烦）
+4. 问题定位：是否存在冷场、敷衍、误解、话题枯竭？
+5. 综合判断：给出 chat_status，确保与具体观察一致
 
-分析重点：
-1. 互动积极程度
-2. 对方主动性
-3. 情绪反馈
-4. 潜在聊天问题
-5. 风险提醒
-6. 回复建议
+输出质量要求：
+- analysis：3-5 句具体观察，每句都应有原文支撑，禁止泛泛而谈（如"对方不太积极"应改为"对方连续回复都是单字'嗯'，无明显话题延伸"）
+- issues：列出具体问题，每条≤20字，必须基于原文而非猜测
+- risks：列出潜在风险（氛围恶化/误解加深/时机不当），空则为[]
+- reply_suggestions：每种风格≤2句，必须呼应聊天中最新的1-2条消息，让人可以直接发送
+- timing_advice：给出可操作的具体建议（如"等半小时再发"、"换一个话题方向"），而非"保持节奏"之类的废话
 
-禁止：
-• 判断喜欢程度
-• 编造事实
-• 情绪操控
-• PUA 风格
-• 极端两性观点
+严格禁止：
+- 判断对方是否喜欢你
+- 任何 PUA / 情感操控话术
+- 编造聊天记录中不存在的事实
+- 使用模板化套话（如"祝你们越来越好"）
+- 代替用户做决定
+- 制造焦虑或恐吓
 
-回复必须：
-自然、现实、可执行。
-
-回复建议规则：
-- 每条回复不超过 2 句话
-- 自然、可直接复制发送
-- 不油腻、不尴尬
-- 禁止套路话术
-
-输出格式：
-严格 JSON。"""
+只输出纯 JSON，不要包裹在 markdown 代码块中。"""
 
 TEST_CASES = [
     {
@@ -104,11 +98,17 @@ async def test_case(case: dict):
 {case['chat']}
 ---
 
-请以 JSON 格式输出分析结果。JSON schema 如下：
-{{"chat_status": "...", "analysis": "...", "issues": [...], "risks": [...], "reply_suggestions": {{"natural": "...", "humorous": "...", "mature": "..."}}, "timing_advice": "..."}}"""
+输出JSON(不要markdown包裹):
+{{"chat_status":"积极互动|普通互动|礼貌回应|偏冷淡|对话风险较高","analysis":"3-5句具体分析，每句引用原文","issues":["具体问题1","具体问题2"],"risks":[],"reply_suggestions":{{"natural":"回复，呼应最新消息","humorous":"回复，呼应最新消息","mature":"回复，呼应最新消息"}},"timing_advice":"可操作的具体建议"}}
+
+质量要求：
+- analysis 每句话都要有原文支撑，禁止泛泛而谈
+- reply_suggestions 必须呼应聊天中最新的消息内容，可直接发送
+- timing_advice 必须具体可操作，禁止"保持节奏"等套话
+- 禁止判断喜欢/PUA/编造事实/模板化套话"""
 
     response = await client.chat.completions.create(
-        model=settings.OPENAI_MODEL,
+        model=settings.TEXT_MODELS[0],
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},

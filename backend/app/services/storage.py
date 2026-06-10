@@ -131,6 +131,51 @@ def init_db():
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+
+        # Good cases table — stores high-quality analysis examples for few-shot prompting
+        # NOTE: Stores only extracted features (not raw chat content) per privacy policy.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS good_cases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                feature_hash TEXT NOT NULL,
+                total_messages INTEGER NOT NULL,
+                total_rounds INTEGER NOT NULL,
+                user_msgs INTEGER NOT NULL,
+                other_msgs INTEGER NOT NULL,
+                avg_user_len REAL NOT NULL,
+                avg_other_len REAL NOT NULL,
+                other_question_ratio REAL NOT NULL,
+                notable_patterns TEXT NOT NULL,
+                relationship_type TEXT NOT NULL,
+                analysis_json TEXT NOT NULL,
+                language TEXT DEFAULT 'zh',
+                usage_count INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        # Migrate old good_cases: add feature columns if missing
+        for col_def in [
+            ("feature_hash", "TEXT NOT NULL DEFAULT ''"),
+            ("total_messages", "INTEGER NOT NULL DEFAULT 0"),
+            ("total_rounds", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_msgs", "INTEGER NOT NULL DEFAULT 0"),
+            ("other_msgs", "INTEGER NOT NULL DEFAULT 0"),
+            ("avg_user_len", "REAL NOT NULL DEFAULT 0"),
+            ("avg_other_len", "REAL NOT NULL DEFAULT 0"),
+            ("other_question_ratio", "REAL NOT NULL DEFAULT 0"),
+            ("notable_patterns", "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE good_cases ADD COLUMN {col_def[0]} {col_def[1]}")
+            except sqlite3.OperationalError:
+                pass
+        try:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_good_cases_relationship
+                ON good_cases(relationship_type, language)
+            """)
+        except sqlite3.OperationalError:
+            pass
         try:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_feedback_rewards_user_date
@@ -507,3 +552,124 @@ def save_feedback_reward(anonymous_user_id: str) -> str:
         conn.commit()
     logger.info(f"Feedback reward granted: user={anonymous_user_id}")
     return reward_id
+
+
+# ── Good Cases (Few-Shot Learning) ──
+
+def save_good_case(features: dict, relationship_type: str, analysis_json: str, language: str = "zh") -> int:
+    """Save a high-quality analysis as a few-shot example. Returns the case ID.
+
+    Called when user gives positive feedback (helpful=true) on an analysis.
+    Only stores extracted features (not raw chat content) per privacy policy.
+    Deduplication: by feature_hash to avoid storing near-identical patterns.
+    """
+    import hashlib
+    import json
+
+    feature_hash = hashlib.sha256(
+        json.dumps(features, sort_keys=True).encode()
+    ).hexdigest()[:16]
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Dedup check by feature hash
+        existing = cursor.execute(
+            "SELECT id FROM good_cases WHERE feature_hash = ? AND relationship_type = ? AND language = ?",
+            (feature_hash, relationship_type, language),
+        ).fetchone()
+        if existing:
+            logger.info(f"Good case already exists (id={existing[0]}), skipping")
+            return existing[0]
+
+        cursor.execute(
+            """INSERT INTO good_cases
+               (feature_hash, total_messages, total_rounds, user_msgs, other_msgs,
+                avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
+                relationship_type, analysis_json, language)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                feature_hash,
+                features.get("total_messages", 0),
+                features.get("total_rounds", 0),
+                features.get("user_msgs", 0),
+                features.get("other_msgs", 0),
+                features.get("avg_user_len", 0.0),
+                features.get("avg_other_len", 0.0),
+                features.get("other_question_ratio", 0.0),
+                features.get("notable_patterns", ""),
+                relationship_type,
+                analysis_json,
+                language,
+            ),
+        )
+        conn.commit()
+        case_id = cursor.lastrowid
+
+    # Limit to 100 cases to prevent unbounded growth
+    _prune_good_cases(max_cases=100)
+    logger.info(f"Good case saved: id={case_id}, relationship={relationship_type}, lang={language}")
+    return case_id
+
+
+def get_good_cases(relationship_type: str | None = None, language: str = "zh", limit: int = 3) -> list[dict]:
+    """Fetch recent good cases for few-shot prompting.
+
+    Returns cases most recently created, optionally filtered by relationship_type.
+    Returns extracted features (not raw chat content) per privacy policy.
+    Limits results to keep prompt lean.
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if relationship_type:
+            rows = cursor.execute(
+                """SELECT id, total_messages, total_rounds, user_msgs, other_msgs,
+                          avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
+                          relationship_type, analysis_json, language, usage_count
+                   FROM good_cases
+                   WHERE relationship_type = ? AND language = ?
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (relationship_type, language, limit),
+            ).fetchall()
+        else:
+            rows = cursor.execute(
+                """SELECT id, total_messages, total_rounds, user_msgs, other_msgs,
+                          avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
+                          relationship_type, analysis_json, language, usage_count
+                   FROM good_cases
+                   WHERE language = ?
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (language, limit),
+            ).fetchall()
+
+        cases = []
+        for row in rows:
+            case = dict(row)
+            # Increment usage count
+            cursor.execute(
+                "UPDATE good_cases SET usage_count = usage_count + 1 WHERE id = ?",
+                (case["id"],),
+            )
+            cases.append(case)
+        conn.commit()
+
+    return cases
+
+
+def _prune_good_cases(max_cases: int = 100):
+    """Delete oldest good cases when count exceeds max_cases."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            count = cursor.execute("SELECT COUNT(*) FROM good_cases").fetchone()[0]
+            if count > max_cases:
+                excess = count - max_cases
+                cursor.execute(
+                    "DELETE FROM good_cases WHERE id IN (SELECT id FROM good_cases ORDER BY created_at ASC LIMIT ?)",
+                    (excess,),
+                )
+                conn.commit()
+                logger.info(f"Pruned {excess} old good cases (keeping {max_cases})")
+    except Exception as e:
+        logger.warning(f"Failed to prune good cases: {e}")

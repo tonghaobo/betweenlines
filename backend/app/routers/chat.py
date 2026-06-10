@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
+# In-memory store: maps anonymous_user_id → latest analysis data for few-shot good_case saving
+_recent_analyses: dict[str, dict] = {}
+
 
 def get_doubao_service() -> DoubaoService:
     if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your_doubao_api_key_here":
@@ -109,6 +112,18 @@ async def analyze_chat(
             request_body.relationship_type,
             result.model_dump(),
         )
+
+        # Store for potential good_case saving (few-shot learning)
+        # Only features are stored (not raw chat content) per privacy policy
+        from app.services.doubao_service import DoubaoService
+        ds = DoubaoService()
+        features = ds._extract_chat_features(cleaned_content)
+        _recent_analyses[request_body.anonymous_user_id] = {
+            "features": features,
+            "relationship_type": request_body.relationship_type,
+            "language": request_body.language or "zh",
+            "analysis_json": result.model_dump_json(),
+        }
 
         return result
 
@@ -237,6 +252,21 @@ async def submit_feedback(request: FeedbackRequest):
             ",".join(request.reason),
             request.comment,
         )
+
+        # If feedback is helpful, save as good_case for few-shot learning
+        if request.helpful and request.anonymous_user_id:
+            analysis_data = _recent_analyses.pop(request.anonymous_user_id, None)
+            if analysis_data:
+                try:
+                    from app.services.storage import save_good_case
+                    save_good_case(
+                        analysis_data["features"],
+                        analysis_data["relationship_type"],
+                        analysis_data["analysis_json"],
+                        analysis_data["language"],
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save good case: {e}")
     except Exception as e:
         logger.warning(f"Failed to save feedback: {e}")
 

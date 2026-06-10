@@ -92,16 +92,19 @@ POST /api/v1/analyze
     │       ├── 构建精简 System Prompt (~90 chars)
     │       ├── 构建紧凑 User Prompt (一行 JSON schema)
     │       ├── 多模型切换（配额耗尽自动换下一个）
-    │       ├── 调用豆包文本模型 (temperature=0.7)
+    │       ├── 调用豆包文本模型 (temperature=0.4)
     │       └── 解析 JSON → ChatAnalysisResponse
     │
     ├── 6. 写入缓存（10min TTL）
     │   └── set_cached_result()
     │
-    ├── 7. 记录日志
+    ├── 7. 暂存分析结果（内存，用于后续 good_case 收集）
+    │   └── _recent_analyses[user_id] = {features, analysis_json}
+    │
+    ├── 8. 记录日志
     │   └── save_analysis_log()
     │
-    └── 8. 返回结果
+    └── 9. 返回结果
         └── JSON Response
 ```
 
@@ -111,19 +114,26 @@ POST /api/v1/analyze
 
 ### DoubaoService (`services/doubao_service.py`)
 
-**System Prompt 结构**：
-- 角色定义：专业社交沟通分析助手
-- 分析重点（6项）：互动温度、回复意愿、聊天节奏、潜在风险、关系状态、最佳策略
-- 禁止事项（5项）：不做绝对判断、不代替聊天、不制造焦虑、不输出PUA内容、不评判用户
-- 回复规则（4条）：自然流畅、风格多样、正向建议、可直接发送
-- 输出格式：严格 JSON Schema
+**System Prompt 结构**（V2 深度优化）：
+- 角色定义：社交沟通分析专家
+- 分析步骤（5步）：整体感知 → 双方对比 → 情绪识别 → 问题定位 → 综合判断
+- 输出质量要求：每项字段的具体标准（如 analysis 必须有原文支撑）
+- 禁止事项（6项）：判断喜欢、PUA、编造事实、模板化套话、替用户做决定、制造焦虑
+- 输出格式：纯 JSON（禁止 markdown 包裹）
+
+**Few-Shot 学习**：
+- **静态示例**：2 个中英文对比示例（高质量 vs 低质量），嵌入式嵌入每次请求
+- **动态学习**：用户点击 👍 时，自动提取特征并保存为 `good_cases`，后续分析按关系类型匹配注入
+- **隐私安全**：仅存储统计特征（消息数、均长、问句比等），不存储聊天原文
 
 **文本分析流程**：
 ```python
 analyze_chat(chat_content: str) -> ChatAnalysisResponse
-    1. _build_user_prompt(chat_content) → 带 JSON Schema 的 User Prompt
-    2. openai.chat.completions.create() → AI 调用
-    3. _parse_response(response) → 解析 JSON，清理 Markdown 代码块标记
+    1. _extract_chat_features(chat_content) → 特征预提取（纯 CPU, <1ms）
+    2. _get_dynamic_fewshot(relationship_type) → 从 DB 加载用户认可案例
+    3. _build_user_prompt(chat_content) → 融入静态+动态 few-shot 示例
+    4. openai.chat.completions.create() → AI 调用
+    5. _parse_response(response) → 解析 JSON + 类型强制转换容错
 ```
 
 **截图 OCR 流程**：
@@ -206,6 +216,25 @@ CREATE TABLE IF NOT EXISTS analysis_log (
     error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- 优质案例表（V2 Few-Shot 学习，仅存特征不存原文）
+CREATE TABLE IF NOT EXISTS good_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feature_hash TEXT NOT NULL,          -- SHA-256 特征去重
+    total_messages INTEGER NOT NULL,
+    total_rounds INTEGER NOT NULL,
+    user_msgs INTEGER NOT NULL,
+    other_msgs INTEGER NOT NULL,
+    avg_user_len REAL NOT NULL,
+    avg_other_len REAL NOT NULL,
+    other_question_ratio REAL NOT NULL,
+    notable_patterns TEXT NOT NULL,
+    relationship_type TEXT NOT NULL,
+    analysis_json TEXT NOT NULL,         -- AI 分析结果 JSON
+    language TEXT DEFAULT 'zh',
+    usage_count INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 ```
 
 **存储函数**：
@@ -217,6 +246,9 @@ CREATE TABLE IF NOT EXISTS analysis_log (
 | `save_outcome(analysis_id, reply_used, outcome)` | 保存结果追踪 |
 | `get_outcome_stats()` | 返回 reply_adoption_rate / positive_outcome_rate |
 | `save_analysis_log(chat_length, chat_status, duration_ms, error)` | 保存分析日志 |
+| `save_good_case(features, relationship_type, analysis_json, language)` | 保存优质案例（仅特征，不含原文） |
+| `get_good_cases(relationship_type, language, limit)` | 获取优质案例用于 Few-Shot 注入 |
+| `_prune_good_cases(max_cases=100)` | 自动剪枝，超出上限删最旧记录 |
 
 ---
 
@@ -276,8 +308,8 @@ CORS 中间件注册在最外层（最后 add），确保 OPTIONS 预检最先�
 | `OPENAI_BASE_URL` | `https://ark.cn-beijing.volces.com/api/v3` | API 地址 |
 | `TEXT_MODELS` | `doubao-seed-2-0-mini-260428,...` | 文本模型列表（质量优先+速度加权排名，见 `tests/benchmark_models.py`） |
 | `VISION_MODELS` | `doubao-1-5-vision-pro-32k-250115,...` | 视觉模型列表（同上，lite 不可用已移除） |
-| `TEMPERATURE` | 0.7 | 文本温度 |
-| `MAX_TOKENS` | 400 | 文本最大 token（精简 Prompt 后降低） |
+| `TEMPERATURE` | 0.4 | 文本温度（降低以提升分析一致性） |
+| `MAX_TOKENS` | 700 | 文本最大 token（增加以容纳详细分析） |
 | `VISION_TEMPERATURE` | 0.3 | OCR 温度（更保守） |
 | `VISION_MAX_TOKENS` | 2000 | OCR 最大 token |
 | `RATE_LIMIT_REQUESTS` | 20 | 每分钟请求数 |

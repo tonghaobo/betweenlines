@@ -42,6 +42,7 @@
 | 1 | Feedback Collection | F1.2 负反馈原因采集 | ✅ 已实现 |
 | 1 | Feedback Collection | F1.3 正反馈原因采集 | ✅ 已实现 |
 | 1 | Feedback Collection | F1.4 Feedback API | ✅ 已实现 |
+| 1 | Feedback Collection | F1.5 正面反馈自动收集优质案例（Few-Shot 学习） | ✅ 已实现 |
 | 2 | Outcome Tracking | F2.1 建议采用率采集 | ✅ 已实现 |
 | 2 | Outcome Tracking | F2.2 Follow-up 回访系统 | ✅ 已实现 |
 | 2 | Outcome Tracking | F2.3 Outcome API | ✅ 已实现 |
@@ -80,6 +81,30 @@
 - 端点：`POST /api/v1/feedback`
 - 请求体：`{ analysis_id, helpful, reason: string[], comment: string }`
 - 数据表：`feedback` (id, analysis_id, helpful, reason, comment, created_at)
+
+### F1.5 正面反馈自动收集优质案例（Few-Shot 学习）🆕
+
+当用户点击 👍 时，自动将当前分析的统计特征和 AI 输出保存为优质案例：
+
+**数据流**：
+```
+分析完成 → _recent_analyses[user_id] = {features, analysis_json}（仅内存）
+用户点 👍 → save_good_case(features, relationship, analysis_json)
+下次分析 → get_good_cases() → 注入到 User Prompt 中
+```
+
+**隐私设计**：仅存储提取后的统计特征（消息数、均长、问句比、显著模式），**不存储聊天原文**。
+
+**Few-Shot 注入层次**：
+1. **静态示例**（始终嵌入）：2 个中英文对比示例，提供基础质量锚定
+2. **动态示例**（DB 加载）：按关系类型匹配的优质案例，最多 2 条
+
+**自动管理**：
+- 去重：SHA-256 特征 hash，相同模式不重复存储
+- 容量：上限 100 条，超出自动删除最旧记录
+- 非阻塞：存储失败不影响主流程
+
+**数据表**：`good_cases`（仅特征字段 + analysis_json）
 
 ---
 
