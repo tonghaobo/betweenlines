@@ -4,7 +4,7 @@ import { I18nLayout } from "./I18nLayout";
 
 export const metadata: Metadata = {
   title: "BetweenLines - Understand the vibe before you reply",
-  description: "Understand the vibe before you reply. AI-powered relationship communication coaching.",
+  description: "Understand the vibe before you reply. AI-powered relationship communication companion.",
 };
 
 export default function RootLayout({

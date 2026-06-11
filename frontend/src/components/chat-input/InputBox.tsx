@@ -15,9 +15,12 @@ interface InputBoxProps {
   initialText?: string;
   relationshipType: RelationshipType;
   onRelationshipChange: (type: RelationshipType) => void;
+  /** Demo chat content + auto-analyze */
+  demoChatText?: string;
+  onDemoFill?: (text: string) => void;
 }
 
-export function InputBox({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange }: InputBoxProps) {
+export function InputBox({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange, demoChatText, onDemoFill }: InputBoxProps) {
   const { t } = useI18n();
 
   // Text state — persist to sessionStorage so refresh doesn't lose draft
@@ -263,6 +266,11 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
 
   return (
     <div className="w-full max-w-lg space-y-3">
+      {/* Trust signal — privacy notice */}
+      <p className="text-xs text-gray-400 text-center flex items-center justify-center gap-1.5">
+        {t.trustSignal.text}
+      </p>
+
       <RelationshipSelector value={relationshipType} onChange={onRelationshipChange} />
 
       {/* Hidden file input — always rendered, so upload & "add more" buttons work after extraction */}
@@ -304,34 +312,51 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
           </div>
 
           {/* Action bar */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSubmit}
-              disabled={text.trim().length < 10 || isLoading}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <LoadingSpinner />
-                  {t.chatInput.analyzing}
-                </>
-              ) : t.chatInput.analyze}
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSubmit}
+                disabled={text.trim().length < 10 || isLoading}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner />
+                    {t.chatInput.analyzing}
+                  </>
+                ) : t.chatInput.analyze}
+              </button>
 
-            <label
-              htmlFor="screenshot-file-input"
-              className={`px-3 py-2.5 text-sm font-medium text-gray-500 bg-gray-100 rounded-xl
-                         hover:bg-gray-200 transition-colors flex items-center gap-1 relative ${isLoading ? "opacity-50 pointer-events-none" : "cursor-pointer"}`}
-              title={t.chatInput.uploadScreenshot}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {screenshotCount > 0 && (
-                <span className="text-[10px]">{screenshotCount}/{MAX_SCREENSHOTS}</span>
-              )}
-            </label>
+              <label
+                htmlFor="screenshot-file-input"
+                className={`px-3 py-2.5 text-sm font-medium text-gray-500 bg-gray-100 rounded-xl
+                           hover:bg-gray-200 transition-colors flex items-center gap-1 relative ${isLoading ? "opacity-50 pointer-events-none" : "cursor-pointer"}`}
+                title={t.chatInput.uploadScreenshot}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {screenshotCount > 0 && (
+                  <span className="text-[10px]">{screenshotCount}/{MAX_SCREENSHOTS}</span>
+                )}
+              </label>
+            </div>
+
+            {/* Try Demo Chat — auto-fill and auto-analyze */}
+            {demoChatText && onDemoFill && (
+              <button
+                onClick={() => {
+                  track("demo_used");
+                  onDemoFill(demoChatText);
+                }}
+                disabled={isLoading}
+                className="w-full text-xs text-blue-500 hover:text-blue-600 
+                           py-1.5 transition-colors disabled:opacity-50"
+              >
+                {t.chatInput.tryDemoChat}
+              </button>
+            )}
           </div>
         </>
       )}

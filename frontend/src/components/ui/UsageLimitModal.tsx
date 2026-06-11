@@ -19,7 +19,7 @@ const messagesEn: VariantMessage[] = [
   {
     emoji: "😅",
     title: "Alright, you've squeezed enough wisdom out of me today",
-    subtitle: "Even AI coaches need a coffee break. I'll be back tomorrow with fresh takes!",
+    subtitle: "Even AI needs a break. I'll be back tomorrow with fresh takes!",
   },
   {
     emoji: "🏃",
@@ -28,7 +28,7 @@ const messagesEn: VariantMessage[] = [
   },
   {
     emoji: "🎬",
-    title: "That's a wrap for today's coaching session!",
+    title: "That's a wrap for today!",
     subtitle: "Even the best scripts need a rewrite break. See you tomorrow!",
   },
   {
@@ -38,7 +38,7 @@ const messagesEn: VariantMessage[] = [
   },
   {
     emoji: "🍵",
-    title: "Coach's tea break — back tomorrow!",
+    title: "Tea break — back tomorrow!",
     subtitle: "Good things come to those who wait ~24 hours.",
   },
 ];
@@ -47,7 +47,7 @@ const messagesZh: VariantMessage[] = [
   {
     emoji: "😅",
     title: "今天聊够了！AI 也得喘口气",
-    subtitle: "教练下班啦，明天再来帮你出谋划策～",
+    subtitle: "休息一下，明天再来帮你出谋划策～",
   },
   {
     emoji: "🏃",
@@ -57,7 +57,7 @@ const messagesZh: VariantMessage[] = [
   {
     emoji: "🎬",
     title: "今日场次已售罄，明天请早",
-    subtitle: "好剧不怕等，Coach 也在为下一场做准备了～",
+    subtitle: "好剧不怕等，明天再来～",
   },
   {
     emoji: "🔋",
@@ -66,7 +66,7 @@ const messagesZh: VariantMessage[] = [
   },
   {
     emoji: "🍵",
-    title: "Coach 泡杯茶歇会，明日再营业",
+    title: "泡杯茶歇会，明日再营业",
     subtitle: "物以稀为贵，好分析不赶时间～",
   },
 ];

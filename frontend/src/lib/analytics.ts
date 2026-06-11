@@ -114,7 +114,13 @@ type EventName =
   | "share_succeeded"
   | "share_cancelled"
   | "share_reward_granted"
-  | "share_reward_limit_hit";
+  | "share_reward_limit_hit"
+  | "hero_cta_clicked"
+  | "demo_cta_clicked"
+  | "demo_used"
+  | "first_analysis_started"
+  | "first_analysis_success"
+  | "bounce_under_10s";
 
 interface TrackProperties {
   [key: string]: string | number | boolean;

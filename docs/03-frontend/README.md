@@ -26,10 +26,14 @@ frontend/src/
 │           └── page.tsx    # 数据指标面板 → 访问 /admin/metrics
 ├── components/             # UI 组件
 │   ├── hero/               # 首页 Hero 区域
-│   │   ├── HeroSection.tsx
-│   │   └── ExampleChats.tsx
+│   │   ├── HeroSection.tsx      # Hero（V2：单行标题 + 双CTA）
+│   │   └── ExampleChats.tsx     # 示例聊天按钮（V2 已由 DemoAnalysis 替代）
+│   ├── home/               # 首页 V2 新增组件
+│   │   ├── DemoAnalysis.tsx     # Demo 分析展示（聊天气泡 + 分析结果双卡片）
+│   │   ├── FeaturesSection.tsx  # 用户收益卡片（3张）
+│   │   └── SocialProof.tsx      # 早期用户反馈展示
 │   ├── chat-input/         # 输入框（V2：统一入口）
-│   │   ├── InputBox.tsx            # 统一输入组件（文本+截图一框搞定）
+│   │   ├── InputBox.tsx            # 统一输入组件（隐私提示 + Demo填充）
 │   │   ├── ChatInput.tsx           # [已弃用] 旧双模式输入
 │   │   └── RelationshipSelector.tsx # 关系类型选择器
 │   ├── result/             # 分析结果
@@ -66,7 +70,7 @@ frontend/src/
 
 ---
 
-## 组件树
+## 组件树（V2 首页结构）
 
 ```
 <html lang="en" suppressHydrationWarning>
@@ -76,10 +80,12 @@ frontend/src/
         <LangSwitcher />                   ← 固定右上角，z-[9999]
         <main>
           <Home>                           ← Client Component
-            ├── 正常状态
-            │   ├── <HeroSection />
-            │   ├── <ExampleChats />
-            │   ├── <InputBox />           ← 统一输入（粘贴文字/图片/拖拽一框搞定）
+            ├── 正常状态 (V2 首页结构)
+            │   ├── <HeroSection />        ← 新文案 + 双CTA（免费试一次/看看效果）
+            │   ├── <DemoAnalysis />       ← 聊天气泡 + 分析结果双卡片展示
+            │   ├── <InputBox />           ← 统一输入（隐私提示 + Demo一键填充）
+            │   ├── <FeaturesSection />    ← 3张用户收益卡片
+            │   ├── <SocialProof />        ← 早期用户反馈
             │   ├── <FollowUpReminder />   ← 24h后回访浮层 (条件显示)
             │   └── 错误提示 (如有)
             ├── Loading 状态
@@ -97,6 +103,34 @@ frontend/src/
                 ├── <FeedbackSection />       ← 👍/👎 + 原因选择
                 └── <ReplyAdoptionCard />     ← 回复采用率
 ```
+
+### V2 首页转化优化（Landing Page V2）
+
+页面结构从 `Hero → ExampleChats → Input → FollowUp` 重构为：
+
+```
+Hero (强价值 + CTA)
+↓
+DemoAnalysis (立即展示产品价值)
+↓
+Input (隐私提示 + Demo填充 + 一键分析)
+↓
+Features (用户收益，非工具描述)
+↓
+SocialProof (早期用户反馈)
+```
+
+Hero 改动：
+- 标题：单行 `"Read what's not being said."` / `"看懂聊天里的潜台词"`
+- 新增双 CTA：`"免费试一次"`（→ 输入区） / `"看看分析效果"`（→ #demo-analysis）
+- 移除内联 features checkmarks（移至 FeaturesSection）
+
+InputBox 改动：
+- 新增隐私提示：`"🔒 默认不保存聊天记录，分析后自动删除"`
+- 新增 `"试试示例聊天"` 按钮：一键填充 demo 聊天 + 自动触发分析
+- Placeholder 优化：带示例格式的引导文案
+
+新增埋点：`hero_cta_clicked` / `demo_cta_clicked` / `demo_used` / `first_analysis_started` / `first_analysis_success` / `bounce_under_10s`
 
 ---
 

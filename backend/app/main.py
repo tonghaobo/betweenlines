@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="BetweenLines API",
-    description="BetweenLines - AI-powered relationship communication coaching",
+    description="BetweenLines - AI-powered relationship communication companion",
     version="1.1.0",
     lifespan=lifespan,
 )

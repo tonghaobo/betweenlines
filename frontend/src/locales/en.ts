@@ -1,17 +1,52 @@
 const en = {
   meta: {
-    title: "BetweenLines - Relationship Communication Coach",
-    description: "Understand the vibe before you reply. AI-powered relationship communication coaching for dating, friends, family, and coworkers.",
+    title: "BetweenLines - Your Chat Companion",
+    description: "Understand the vibe before you reply. AI-powered relationship communication companion for dating, friends, family, and coworkers.",
   },
   hero: {
-    badge: "AI-Powered Relationship Communication Coach",
-    title1: "Understand the vibe",
-    title2: "before you reply.",
-    subtitle:
-      "Get instant insight on conversation mood, natural reply suggestions, and timing advice — for any relationship.",
-    feature1: "No sign-up required",
-    feature2: "Chat data not stored",
-    feature3: "Natural, not PUA",
+    badge: "AI Chat Companion",
+    title: "Read what's not being said.",
+    subtitle: "Paste a chat.\nUnderstand the vibe,\nwhat they might mean,\nand how to reply naturally.",
+    ctaTryFree: "Try Free",
+    ctaSeeExample: "See Example",
+  },
+  demoAnalysis: {
+    heading: "See it in action",
+    exampleLabel: "Example Chat",
+    resultLabel: "Analysis Result",
+    messages: {
+      her1: "Her: hahaha",
+      me1: "Me: wanna grab dinner?",
+      her2: "Her: kinda busy lately~",
+    },
+    vibe: "Chat Vibe",
+    vibeLevel: "Lukewarm 🔥",
+    status: "Possible State",
+    statusText: "Receptive but keeping it casual. Pacing is conservative.",
+    adviceLabel: "Advice",
+    adviceText: "Don't push. Keep it light and natural.",
+    cta: "Try my own chat →",
+  },
+  features: {
+    heading: "What you'll get",
+    card1Title: "Read the vibe",
+    card1Desc: "Gauge relationship temperature and conversation rhythm instantly.",
+    card2Title: "Natural replies",
+    card2Desc: "Get reply suggestions that feel authentic — no awkwardness.",
+    card3Title: "Any relationship",
+    card3Desc: "Dating, friends, family, coworkers — we've got you covered.",
+  },
+  socialProof: {
+    heading: "Early Tester Feedback",
+    quote1: "\"Reminded me not to double-text — literally saved me…\"",
+    author1: "— Anonymous",
+    quote2: "\"More insightful than my friends' advice 😂\"",
+    author2: "— Anonymous",
+    quote3: "\"Finally understood why she suddenly went cold.\"",
+    author3: "— User Feedback",
+  },
+  trustSignal: {
+    text: "🔒 Chats are not stored. Deleted after analysis.",
   },
   exampleChats: {
     label: "Try an example:",
@@ -31,8 +66,9 @@ const en = {
     other: "Other",
   },
   chatInput: {
-    unifiedPlaceholder: "Paste chat / screenshot here, auto-detect",
-    placeholder: "Paste your chat here...\n\nExample format:\nshe: Hey, what are you up to\nme: Just got off work, so tired haha\nshe: That's rough, had dinner yet?\nme: Not yet",
+    unifiedPlaceholder: "Paste a chat or upload screenshots\n\nExample:\n\nHer: hahaha\nMe: wanna grab dinner?\nHer: kinda busy lately~",
+    placeholder: "Paste a chat or upload screenshots\n\nExample:\n\nHer: hahaha\nMe: wanna grab dinner?\nHer: kinda busy lately~",
+    tryDemoChat: "Try Demo Chat",
     charCount: "{current}/{max}",
     minCharsError: "Please enter at least {min} characters for analysis.",
     maxCharsError: "Chat content must be at most {max} characters.",
@@ -66,7 +102,7 @@ const en = {
   },
   usageLimit: {
     title: "Alright, you've squeezed enough wisdom out of me today 😅",
-    subtitle: "Even AI coaches need a coffee break. Come back tomorrow!",
+    subtitle: "Even AI needs a break. Come back tomorrow!",
     backBtn: "Got it, see you tomorrow",
   },
   loading: {
