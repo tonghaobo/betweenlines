@@ -241,6 +241,11 @@ CREATE TABLE IF NOT EXISTS good_cases (
     sentiment_pos INTEGER DEFAULT 0,     -- 积极情绪词数量
     sentiment_neg INTEGER DEFAULT 0,     -- 消极/敷衍词数量
     topic_coherence REAL DEFAULT 0,      -- 话题连贯性（引用前文的占比%）
+    user_question_ratio REAL DEFAULT 0,  -- 用户提问占比
+    user_solution_ratio REAL DEFAULT 0,  -- 解题模式占比
+    user_closing_ratio REAL DEFAULT 0,   -- 收口信号占比
+    safe_zone_ratio REAL DEFAULT 0,      -- 安全区对话占比
+    max_emoji_relay INTEGER DEFAULT 0,   -- 最长表情接力轮数
     usage_count INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );

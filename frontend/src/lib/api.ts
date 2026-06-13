@@ -1,7 +1,7 @@
 // Dev (via Next.js rewrites): API_BASE_URL = "" → relative path /api/v1/...
 // Prod (Vercel): set NEXT_PUBLIC_API_URL in vercel.json to Railway backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
-const REQUEST_TIMEOUT = 30000;
+const REQUEST_TIMEOUT = 50000; // 50s (matches enhanced prompt backend timeout)
 const SCREENSHOT_TIMEOUT = 300000; // 截图分析最多等待5分钟（视觉模型可能较慢）
 const MAX_RETRIES = 2;
 

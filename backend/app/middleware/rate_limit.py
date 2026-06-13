@@ -1,6 +1,7 @@
 import time
 from collections import defaultdict
-from fastapi import Request, HTTPException
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 
 
@@ -31,12 +32,12 @@ rate_limiter = SimpleRateLimiter(
 async def rate_limit_middleware(request: Request, call_next):
     if request.url.path == "/api/v1/analyze":
         client_ip = request.client.host if request.client else "unknown"
-        
+
         if not rate_limiter.is_allowed(client_ip):
-            raise HTTPException(
+            return JSONResponse(
                 status_code=429,
-                detail="Too many requests. Please wait a moment before trying again.",
+                content={"detail": "Too many requests. Please wait a moment before trying again."},
             )
-    
+
     response = await call_next(request)
     return response

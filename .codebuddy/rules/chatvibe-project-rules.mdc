@@ -409,6 +409,7 @@ docs/
 
 - **禁止自动提交**：没有用户明确指示，不得执行 `git commit`
 - **用户明确说「提交」「commit」等关键词时**才能执行 `git commit`
+- ⚠️ **提交前必须执行回归验证**，详见第 21 条
 - **禁止自动推送**：没有用户明确指示，不得执行 `git push`
 - **用户明确说「推送」「push」「提交到远程」等关键词时**才能执行 `git push`
 - **唯一例外**：用户在同一轮对话中先说了「提交」再接着说「推送」，则可以连续执行
@@ -422,3 +423,67 @@ docs/
 - 前端：kill 旧进程 → 重新启动 next dev
 - 注意：先确认当前是否有进程在运行，如有则重启；如无则直接启动
 - 原则：改动代码 → 立刻让用户看到效果，不等到手动重启
+
+---
+
+# 21. 提交前回归验证（强制）
+
+## AI Agent 强制流程（每次 commit 前必须执行）
+
+每次代码改动准备提交时，**必须运行回归验证**，不允许跳过。验证分三级：
+
+### Level 1：快速校验（必须，<5s）
+
+改动涉及后端时，运行校验测试确认服务可用：
+
+```
+cd backend && python tests/test_comprehensive.py
+# 只看 PHASE 1（校验测试），6/6 通过 = 过关
+```
+
+改动仅涉及前端时，检查编译状态：
+
+```
+cd frontend && npx next build --no-lint 2>&1 | tail -5
+# 无 error = 过关
+```
+
+### Level 2：核心场景（改动涉及 AI/分析逻辑时强制）
+
+```
+cd backend && python -c "
+from tests.test_comprehensive import run_single_test, TEST_CASES
+import asyncio
+# 跑 3 个核心场景验证分析质量
+for name in ['解题模式_典型', '偏冷淡', '积极互动']:
+    r = asyncio.run(run_single_test(name, TEST_CASES[name]))
+    status = '✅' if not r.errors else '❌'
+    print(f'{status} {name}: {r.chat_status} ({r.duration_ms//1000}s)')
+"
+```
+
+### Level 3：全量回归（重大改动、发版前强制）
+
+```
+cd backend && python tests/test_comprehensive.py
+# 通过率 ≥ 50%、耗时 <20s avg、无套话 100%、回复质量 100%
+```
+
+## 验证结果处理
+
+| 结果 | 处理 |
+|------|------|
+| ✅ 全部通过 | 继续提交流程 |
+| ⚠️ 校验通过但核心场景失败 | 告知用户，询问是否继续提交 |
+| ❌ 校验失败 | **阻塞提交**，先修复问题 |
+| ⏱️ 超时无法完成 | 告知用户，降级为手动验证 |
+
+## 可跳过场景
+
+- 仅修改文档（`docs/`）、测试文件、配置文件
+- 仅修改非运行时文件（`README.md`、`.gitignore`）
+- 用户明确说「跳过测试直接提交」
+
+## 验证记录
+
+每次提交前验证结果应告知用户：通过/失败项、关键指标（耗时、质量评分）。

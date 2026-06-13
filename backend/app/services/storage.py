@@ -156,6 +156,11 @@ def init_db():
                 sentiment_pos INTEGER DEFAULT 0,
                 sentiment_neg INTEGER DEFAULT 0,
                 topic_coherence REAL DEFAULT 0,
+                user_question_ratio REAL DEFAULT 0,
+                user_solution_ratio REAL DEFAULT 0,
+                user_closing_ratio REAL DEFAULT 0,
+                safe_zone_ratio REAL DEFAULT 0,
+                max_emoji_relay INTEGER DEFAULT 0,
                 usage_count INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT (datetime('now'))
             )
@@ -178,6 +183,11 @@ def init_db():
             ("sentiment_pos", "INTEGER DEFAULT 0"),
             ("sentiment_neg", "INTEGER DEFAULT 0"),
             ("topic_coherence", "REAL DEFAULT 0"),
+            ("user_question_ratio", "REAL DEFAULT 0"),
+            ("user_solution_ratio", "REAL DEFAULT 0"),
+            ("user_closing_ratio", "REAL DEFAULT 0"),
+            ("safe_zone_ratio", "REAL DEFAULT 0"),
+            ("max_emoji_relay", "INTEGER DEFAULT 0"),
         ]:
             try:
                 cursor.execute(f"ALTER TABLE good_cases ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -620,8 +630,10 @@ def save_good_case(features: dict, relationship_type: str, analysis_json: str, l
                 avg_user_len, avg_other_len, other_question_ratio, notable_patterns,
                 relationship_type, analysis_json, language, quality_reason,
                 other_emoji_count, user_emoji_count, other_short_ratio,
-                sentiment_pos, sentiment_neg, topic_coherence)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                sentiment_pos, sentiment_neg, topic_coherence,
+                user_question_ratio, user_solution_ratio, user_closing_ratio,
+                safe_zone_ratio, max_emoji_relay)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 feature_hash,
                 features.get("total_messages", 0),
@@ -642,6 +654,11 @@ def save_good_case(features: dict, relationship_type: str, analysis_json: str, l
                 features.get("sentiment_pos", 0),
                 features.get("sentiment_neg", 0),
                 features.get("topic_coherence", 0.0),
+                features.get("user_question_ratio", 0.0),
+                features.get("user_solution_ratio", 0.0),
+                features.get("user_closing_ratio", 0.0),
+                features.get("safe_zone_ratio", 0.0),
+                features.get("max_emoji_relay", 0),
             ),
         )
         conn.commit()
@@ -665,7 +682,9 @@ def get_good_cases(relationship_type: str | None = None, language: str = "zh", l
                "avg_user_len, avg_other_len, other_question_ratio, notable_patterns, "
                "relationship_type, analysis_json, language, usage_count, "
                "quality_reason, other_emoji_count, user_emoji_count, "
-               "other_short_ratio, sentiment_pos, sentiment_neg, topic_coherence")
+               "other_short_ratio, sentiment_pos, sentiment_neg, topic_coherence, "
+               "user_question_ratio, user_solution_ratio, user_closing_ratio, "
+               "safe_zone_ratio, max_emoji_relay")
 
     with get_db_connection() as conn:
         cursor = conn.cursor()

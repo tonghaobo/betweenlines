@@ -52,16 +52,23 @@ function saveAnalysis(result: ChatAnalysisResponse): void {
 export function useChatAnalysis() {
   const { t } = useI18n();
 
-  const [state, setState] = useState<UseChatAnalysisState>(() => {
-    const saved = loadSavedAnalysis();
-    return {
-      result: saved,
-      isLoading: false,
-      error: null,
-      errorType: null,
-      limitReached: false,
-    };
+  const [state, setState] = useState<UseChatAnalysisState>({
+    result: null,
+    isLoading: false,
+    error: null,
+    errorType: null,
+    limitReached: false,
   });
+
+  // Restore saved analysis from sessionStorage on client mount (avoids SSR hydration mismatch)
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    const saved = loadSavedAnalysis();
+    if (saved) {
+      setState(prev => ({ ...prev, result: saved }));
+    }
+    setRestored(true);
+  }, []);
 
   // Clear saved result if result is gone (e.g. user clicked back without reset)
   useEffect(() => {

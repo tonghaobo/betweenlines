@@ -112,3 +112,43 @@ python -c "from app.core.config import settings; print(settings.OPENAI_API_KEY[:
 **根因**：Railway 通过 `PORT` 环境变量指定路由端口，但 `entrypoint.sh` 硬编码了 8000/3000，未读取 `PORT`。
 
 **解决方案**：`entrypoint.sh` 已修复 — 后端监听 `${PORT:-8000}`，Railway 上只启动后端（前端在 Vercel）。需在 Railway 清除构建缓存后重新部署。
+
+---
+
+### 10. 刷新页面出现 Hydration Mismatch 报错
+
+**现象**：刷新结果页时 React 报错 `Hydration failed because the initial UI does not match`。
+
+**根因**：`useChatAnalysis` 在 `useState` 初始化器中从 `sessionStorage` 读取缓存的分析结果。SSR 时 `result=null` → 渲染首页 `space-y-4`，客户端水合时 `result=缓存数据` → 渲染结果页 `space-y-8` + 返回按钮。
+
+**解决方案**：将 `sessionStorage` 读取从 `useState` 初始化器移至 `useEffect`（仅在客户端挂载后执行）。
+
+---
+
+### 11. 并发请求触发限流后返回 500 而非 429
+
+**现象**：短时间内大量请求时返回 `500 Internal Server Error` 而非正确的 `429 Too Many Requests`。
+
+**根因**：限流中间件使用 `HTTPException` 抛异常，但 Starlette `BaseHTTPMiddleware` 不会正确传播 `HTTPException`。
+
+**解决方案**：改为直接返回 `JSONResponse(status_code=429, ...)`。
+
+---
+
+### 12. 分析耗时过长（>30s）
+
+**现象**：上传聊天记录后分析耗时超过 30 秒。
+
+**根因**：（1）Prompt 增强后 Few-Shot 示例过长导致 AI 输出膨胀；（2）默认超时设置偏低。
+
+**解决方案**：精简 Few-Shot 示例、系统 Prompt 限制输出长度（200 字）、调高超时（httpx 60s, SDK 45s, 前端 50s）。预期耗时 8-20s。
+
+---
+
+### 13. 前端 Next.js dev server CPU 100% 卡死
+
+**现象**：长时间运行后 `next-server` 进程 CPU 占用飙升到 140%+，页面无法访问。
+
+**根因**：Turbopack 开发服务器内存泄漏（长时间运行后）。
+
+**解决方案**：`kill` 旧进程后重启 `next dev` 即可恢复。
