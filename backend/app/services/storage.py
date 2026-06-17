@@ -55,11 +55,26 @@ def init_db():
                 relationship_type TEXT DEFAULT 'romantic',
                 request_duration_ms REAL,
                 error TEXT,
+                turning_point_detected BOOLEAN DEFAULT 0,
+                turning_point_confidence REAL DEFAULT 0,
+                features_json TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
         try:
             cursor.execute("ALTER TABLE analysis_log ADD COLUMN relationship_type TEXT DEFAULT 'romantic'")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE analysis_log ADD COLUMN turning_point_detected BOOLEAN DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE analysis_log ADD COLUMN turning_point_confidence REAL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE analysis_log ADD COLUMN features_json TEXT")
         except sqlite3.OperationalError:
             pass
 
@@ -72,6 +87,36 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS review_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                analysis_id TEXT NOT NULL,
+                review_status TEXT,
+                advice_effective TEXT,
+                new_chat_length INTEGER,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS analysis_tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                analysis_id INTEGER NOT NULL,
+                conversation_stage TEXT DEFAULT '',
+                other_style TEXT DEFAULT '',
+                user_issue TEXT DEFAULT '',
+                label_source TEXT DEFAULT 'rule',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        try:
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_analysis_tags_analysis_id
+                ON analysis_tags(analysis_id)
+            """)
+        except sqlite3.OperationalError:
+            pass
         
         # Events table for analytics
         cursor.execute("""
@@ -319,14 +364,51 @@ def save_analysis_log(
     duration_ms: float,
     error: str | None = None,
     relationship_type: str | None = None,
-):
+    turning_point_detected: bool | None = None,
+    turning_point_confidence: float | None = None,
+    features_json: str | None = None,
+) -> int | None:
+    """Save analysis log. Returns the auto-increment ID, or None on error."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO analysis_log (chat_length, chat_status, relationship_type, request_duration_ms, error) VALUES (?, ?, ?, ?, ?)",
-            (chat_length, chat_status, relationship_type, duration_ms, error),
+            "INSERT INTO analysis_log (chat_length, chat_status, relationship_type, request_duration_ms, error, turning_point_detected, turning_point_confidence, features_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (chat_length, chat_status, relationship_type, duration_ms, error,
+             1 if turning_point_detected else 0 if turning_point_detected is not None else None,
+             turning_point_confidence,
+             features_json),
         )
         conn.commit()
+        return cursor.lastrowid
+
+
+def get_analysis_log(analysis_id: int) -> dict | None:
+    """Retrieve an analysis log entry by ID. Returns None if not found."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        row = cursor.execute(
+            "SELECT * FROM analysis_log WHERE id = ?", (analysis_id,)
+        ).fetchone()
+    if row is None:
+        return None
+    return dict(row)
+
+
+def save_review_log(
+    analysis_id: str,
+    review_status: str | None = None,
+    advice_effective: str | None = None,
+    new_chat_length: int = 0,
+) -> int | None:
+    """Save a review log entry. Returns the auto-increment ID."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO review_log (analysis_id, review_status, advice_effective, new_chat_length) VALUES (?, ?, ?, ?)",
+            (analysis_id, review_status, advice_effective, new_chat_length),
+        )
+        conn.commit()
+        return cursor.lastrowid
 
 
 def get_feedback_stats():
@@ -594,6 +676,155 @@ def save_feedback_reward(anonymous_user_id: str) -> str:
         conn.commit()
     logger.info(f"Feedback reward granted: user={anonymous_user_id}")
     return reward_id
+
+
+# ── Analysis Tags (Phase 3) ──
+
+def save_analysis_tags(
+    analysis_id: int,
+    conversation_stage: str = "",
+    other_style: str = "",
+    user_issue: str = "",
+    label_source: str = "rule",
+) -> int | None:
+    """Save auto-generated tags for an analysis. Returns the tag ID or None on error."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO analysis_tags (analysis_id, conversation_stage, other_style, user_issue, label_source) VALUES (?, ?, ?, ?, ?)",
+                (analysis_id, conversation_stage, other_style, user_issue, label_source),
+            )
+            conn.commit()
+            return cursor.lastrowid
+    except Exception as e:
+        logger.warning(f"Failed to save analysis tags (analysis_id={analysis_id}): {e}")
+        return None
+
+
+def get_analysis_tags(analysis_id: int) -> dict | None:
+    """Get tags for an analysis by ID. Returns None if not found."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        row = cursor.execute(
+            "SELECT * FROM analysis_tags WHERE analysis_id = ? ORDER BY created_at DESC LIMIT 1",
+            (analysis_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return dict(row)
+
+
+def get_tag_stats() -> dict:
+    """Get tag distribution stats for dashboard."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        total_tagged = cursor.execute("SELECT COUNT(*) FROM analysis_tags").fetchone()[0]
+
+        # conversation_stage distribution
+        stage_rows = cursor.execute(
+            "SELECT conversation_stage, COUNT(*) as cnt FROM analysis_tags WHERE conversation_stage != '' GROUP BY conversation_stage ORDER BY cnt DESC"
+        ).fetchall()
+        conversation_stage_dist = {row["conversation_stage"]: row["cnt"] for row in stage_rows}
+
+        # other_style distribution
+        style_rows = cursor.execute(
+            "SELECT other_style, COUNT(*) as cnt FROM analysis_tags WHERE other_style != '' GROUP BY other_style ORDER BY cnt DESC"
+        ).fetchall()
+        other_style_dist = {row["other_style"]: row["cnt"] for row in style_rows}
+
+        # user_issue distribution
+        issue_rows = cursor.execute(
+            "SELECT user_issue, COUNT(*) as cnt FROM analysis_tags WHERE user_issue != '' GROUP BY user_issue ORDER BY cnt DESC"
+        ).fetchall()
+        user_issue_dist = {row["user_issue"]: row["cnt"] for row in issue_rows}
+
+    return {
+        "total_tagged": total_tagged,
+        "conversation_stage_dist": conversation_stage_dist,
+        "other_style_dist": other_style_dist,
+        "user_issue_dist": user_issue_dist,
+    }
+
+
+# ── Error Case Queries (Phase 4) ──
+
+def get_error_case_stats() -> dict:
+    """Get error case statistics: reason distribution and stage-error cross stats."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        total_errors = cursor.execute(
+            "SELECT COUNT(*) FROM feedback WHERE helpful = 0"
+        ).fetchone()[0]
+
+        # Reason distribution (reason is comma-separated in DB)
+        reason_rows = cursor.execute(
+            "SELECT reason FROM feedback WHERE helpful = 0 AND reason != ''"
+        ).fetchall()
+
+        reason_dist: dict[str, int] = {}
+        for row in reason_rows:
+            for r in row["reason"].split(","):
+                r = r.strip()
+                if r:
+                    reason_dist[r] = reason_dist.get(r, 0) + 1
+
+        # Stage-error cross distribution
+        stage_error_rows = cursor.execute("""
+            SELECT at.conversation_stage, COUNT(*) as cnt
+            FROM feedback f
+            JOIN analysis_tags at ON CAST(f.analysis_id AS INTEGER) = at.analysis_id
+            WHERE f.helpful = 0 AND at.conversation_stage != ''
+            GROUP BY at.conversation_stage
+            ORDER BY cnt DESC
+        """).fetchall()
+        stage_error_dist = {row["conversation_stage"]: row["cnt"] for row in stage_error_rows}
+
+    return {
+        "total_errors": total_errors,
+        "reason_distribution": reason_dist,
+        "stage_error_distribution": stage_error_dist,
+    }
+
+
+def get_error_cases(limit: int = 20, offset: int = 0) -> dict:
+    """Get paginated error cases with tag info. Returns {cases, total}."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        total = cursor.execute(
+            "SELECT COUNT(*) FROM feedback WHERE helpful = 0"
+        ).fetchone()[0]
+
+        rows = cursor.execute("""
+            SELECT f.id, f.analysis_id, f.reason, f.comment, f.created_at,
+                   al.chat_status,
+                   at.conversation_stage, at.other_style, at.user_issue
+            FROM feedback f
+            LEFT JOIN analysis_log al ON CAST(f.analysis_id AS INTEGER) = al.id
+            LEFT JOIN analysis_tags at ON CAST(f.analysis_id AS INTEGER) = at.analysis_id
+            WHERE f.helpful = 0
+            ORDER BY f.created_at DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset)).fetchall()
+
+        cases = []
+        for row in rows:
+            cases.append({
+                "id": row["id"],
+                "analysis_id": row["analysis_id"],
+                "reason": row["reason"],
+                "comment": row["comment"],
+                "chat_status": row["chat_status"] or "",
+                "conversation_stage": row["conversation_stage"] or "",
+                "other_style": row["other_style"] or "",
+                "user_issue": row["user_issue"] or "",
+                "created_at": row["created_at"],
+            })
+
+    return {"cases": cases, "total": total}
 
 
 # ── Good Cases (Few-Shot Learning) ──

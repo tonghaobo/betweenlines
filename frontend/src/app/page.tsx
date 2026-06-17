@@ -6,6 +6,7 @@ import { DemoAnalysis } from "@/components/home/DemoAnalysis";
 import { FeaturesSection } from "@/components/home/FeaturesSection";
 import { SocialProof } from "@/components/home/SocialProof";
 import { InputBox } from "@/components/chat-input/InputBox";
+import { PrivacyBadge } from "@/components/ui/PrivacyBadge";
 import { useChatAnalysis } from "@/lib/useChatAnalysis";
 import { ResultPage } from "@/components/result/ResultPage";
 import { FeedbackSection } from "@/components/feedback/FeedbackSection";
@@ -14,6 +15,7 @@ import { FollowUpReminder } from "@/components/feedback/FollowUpReminder";
 import { LoadingOverlay } from "@/components/ui/LoadingOverlay";
 import { UsageLimitModal } from "@/components/ui/UsageLimitModal";
 import { ShareButton } from "@/components/share/ShareButton";
+import { FollowUpReviewCTA } from "@/components/review/FollowUpReviewCTA";
 import { useI18n } from "@/contexts/I18nContext";
 import { track, getAnalyticsUserId } from "@/lib/analytics";
 import type { RelationshipType } from "@/lib/api";
@@ -66,7 +68,7 @@ export default function Home() {
         try {
           navigator.sendBeacon(
             `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/track`,
-            body,
+            new Blob([body], { type: "application/json" }),
           );
         } catch { /* silent */ }
       }
@@ -124,14 +126,19 @@ export default function Home() {
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Demo fill → auto analyze
-  const handleDemoFill = useCallback((text: string) => {
-    setExampleText(text);
-    // Small delay to let text populate, then auto-analyze
-    setTimeout(() => {
-      handleSubmit(text, relationshipType, "demo");
-    }, 100);
-  }, [relationshipType, handleSubmit]);
+  // Scroll to demo section (from InputBox "Try Demo Chat" button)
+  const scrollToDemoFromInput = useCallback(() => {
+    const el = document.getElementById("demo-analysis");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Brief highlight effect
+      el.style.transition = "box-shadow 0.3s ease";
+      el.style.boxShadow = "0 0 0 4px rgba(59, 130, 246, 0.3)";
+      setTimeout(() => {
+        el.style.boxShadow = "";
+      }, 2000);
+    }
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -170,6 +177,7 @@ export default function Home() {
         <ShareButton data={result} relationshipType={lastRelationshipType} />
         <FeedbackSection />
         <ReplyAdoptionCard />
+        <FollowUpReviewCTA analysisId={result.analysis_id} />
       </div>
     );
   }
@@ -184,7 +192,8 @@ export default function Home() {
       <DemoAnalysis onTryMyChat={scrollToInput} />
 
       {/* 3. Input — start experience */}
-      <div ref={inputRef}>
+      <PrivacyBadge />
+      <div ref={inputRef} className="mt-4">
         <InputBox
           onSubmit={handleSubmit}
           isLoading={false}
@@ -192,7 +201,7 @@ export default function Home() {
           relationshipType={relationshipType}
           onRelationshipChange={setRelationshipType}
           demoChatText={DEMO_CHAT_TEXT}
-          onDemoFill={handleDemoFill}
+          onDemoClick={scrollToDemoFromInput}
         />
       </div>
 

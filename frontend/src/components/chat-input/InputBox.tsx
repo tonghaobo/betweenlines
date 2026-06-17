@@ -15,12 +15,13 @@ interface InputBoxProps {
   initialText?: string;
   relationshipType: RelationshipType;
   onRelationshipChange: (type: RelationshipType) => void;
-  /** Demo chat content + auto-analyze */
+  /** Demo chat content */
   demoChatText?: string;
-  onDemoFill?: (text: string) => void;
+  /** Callback when user clicks "Try Demo Chat" — should scroll to demo section */
+  onDemoClick?: () => void;
 }
 
-export function InputBox({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange, demoChatText, onDemoFill }: InputBoxProps) {
+export function InputBox({ onSubmit, isLoading, initialText = "", relationshipType, onRelationshipChange, demoChatText, onDemoClick }: InputBoxProps) {
   const { t } = useI18n();
 
   // Text state — persist to sessionStorage so refresh doesn't lose draft
@@ -343,12 +344,12 @@ export function InputBox({ onSubmit, isLoading, initialText = "", relationshipTy
               </label>
             </div>
 
-            {/* Try Demo Chat — auto-fill and auto-analyze */}
-            {demoChatText && onDemoFill && (
+            {/* Try Demo Chat — scroll to demo section */}
+            {demoChatText && onDemoClick && (
               <button
                 onClick={() => {
                   track("demo_used");
-                  onDemoFill(demoChatText);
+                  onDemoClick();
                 }}
                 disabled={isLoading}
                 className="w-full text-xs text-blue-500 hover:text-blue-600 

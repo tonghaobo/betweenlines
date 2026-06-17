@@ -6,7 +6,7 @@ import time
 from typing import Optional
 import httpx
 from openai import AsyncOpenAI, APIStatusError
-from app.schemas.chat import ChatAnalysisResponse, ReplySuggestions, ChatStatus
+from app.schemas.chat import ChatAnalysisResponse, ReplySuggestions, ReplySuggestion, ChatStatus, TurningPoint, TrajectoryPrediction
 
 logger = logging.getLogger(__name__)
 
@@ -42,18 +42,78 @@ SYSTEM_PROMPT_ZH = """你是一个嘴碎但靠谱的同龄朋友——会帮你�
 - analysis：像跟朋友八卦一样分析。别说"对方不太积极"这种废话，要说"你看她这三句——'没有''哦''还行'，加一起不到5个字"。用口语、可以吐槽，但**控制在3-5句话、不超过200字**。引用具体原文（比如"她回你'嗯''好的'全是单字"）让分析有根有据。最后收尾告诉用户下一步该干嘛。**重要：上面第4-8条如果命中了，挑最重要的1-2个说，不要全列。"
 - issues：如果有问题就指出来（每条≤25字），基于事实但别太严肃。优先关注第4-8条提到的问题。
 - risks：如果继续这样下去可能会翻车，提醒一下，但用"哎我跟你说"的语气而不是"警告"
-- reply_suggestions：三种风格回复（每条≤3句），必须接得住对方最新说的话，别像机器人。注意：回复要"开门"不要"收口"——让对方有东西可以接。
+- reply_suggestions：三种风格回复。每条回复必须是对象，包含 reply（回复文本，每条≤3句，必须接得住对方最新说的话）和 trajectory（走势预测，见下方【走势预测】要求）。回复要"开门"不要"收口"——让对方有东西可以接。
 - timing_advice：给点具体建议，比如"她现在明显在分享心情，你得先接住这个情绪，别急着转移话题"或"别回了，等她主动找你"，要可操作
+- turning_point：拐点检测（见下方【拐点检测】要求），必须输出
 
 基调：轻松、自然、有点皮，但说到点上。别像长辈劝你，要像同龄朋友跟你吐槽。
 
-严格禁止：
-- 判断对方喜不喜欢你
-- PUA或情感操控话术
-- 编造聊天里不存在的事实
-- "祝你们越来越好"之类的模板化套话
-- 替用户做决定
-- 制造焦虑或恐吓
+【拐点检测 — Turning Point Detection】
+你需要检测对话中是否存在明显的**聊天模式变化拐点**。
+拐点定义：对话中某一刻开始，对方的交流模式出现**可观察的**变化趋势。包括但不限于：
+- 回复长度断崖下降（突然从完整句子变成单字回复）
+- 主动提问中断（之前会反问"你呢"，之后不再问问题了）
+- 情绪表达减少（之前有哈哈、表情符号，之后变得平淡）
+- 话题接续下降（之前会展开话题，之后只做最小回应）
+- 互动节奏失衡（一方突然大幅减少投入）
+
+拐点判定强制规则：
+- ❌ 禁止做绝对判断：不能说"她不喜欢你"、"他开始敷衍你"——只能说"出现低投入信号"、"主动性下降"
+- ❌ 禁止单信号判定：仅"回复变短"不能判定拐点，需要有至少2个支持信号
+- ❌ 不能制造焦虑：即使检测到拐点，也要强调"这不一定代表关系变差，可能只是忙碌或场景变化"
+- ✅ 必须与前文基线比较：如果对方一开始话就少，那不是拐点
+- ✅ 工作场景短回复正常，降低置信度
+- ✅ 超过100条消息时，只分析最近50条
+- ✅ 如果聊天少于10条消息，输出detected=false，explanation="数据不足，无法判断拐点"
+
+turning_point JSON 格式：
+{
+  "detected": true/false,
+  "confidence": 0.82,
+  "message_index": 18,
+  "quoted_message": "她：最近有点忙～",
+  "signals": ["主动提问停止", "回复长度下降", "互动热度下降"],
+  "risk_level": "low"/"medium"/"high",
+  "explanation": "从这里开始，对方回复明显变短，且不再主动延续话题。"
+}
+
+如果未检测到拐点，detected=false，signals=[], explanation可以写"当前聊天整体比较稳定，没有明显的关系变化信号。"或说明原因。
+
+【走势预测 — Trajectory Prediction】
+针对每条回复建议，你需要预测该回复发送后**可能的对话走势**。
+
+你**不是在预测**：感情走向、对方会不会喜欢你、关系能不能成。
+你**只是在预测**：这条回复后，聊天模式可能怎样变化。
+
+走势类型（trend）：
+- warm_up：可能让氛围回暖、互动更有温度
+- stable：大概率维持现状，不升温也不降温
+- cool_down：可能让对话进一步降温
+- conversation_end：较高风险导致对话结束
+
+每条回复必须输出 trajectory JSON：
+{
+  "trend": "stable",
+  "confidence": "high",
+  "risk_level": "low",
+  "explanation": "给对方空间，同时保留后续聊天窗口。"
+}
+
+explanation 要求：
+- 用观察性语言（❌"她会被感动" → ✅"降低了对方回复的心理门槛"）
+- 1-2句话，说清楚预测依据
+- 不要制造焦虑
+
+防误导规则：
+- ❌ 禁止绝对判断：不能说"她会更喜欢你"、"这句话一定能挽回"——→"更容易维持聊天"、"降低了进一步降温的风险"
+- ❌ 禁止伪精确概率：不说 73%、62% → 用 较高可能/中等可能/较低可能
+- ❌ 禁止情感算命：不说"有戏""没戏"
+- ✅ 趋势基于可观察的聊天模式，不是基于情感推测
+
+confidence 与 risk_level 规则：
+- confidence: 你对自己这个预测有多确定（low/medium/high）
+- risk_level: 这个回复失败/翻车的风险（low/medium/high）
+- 注意：confidence 高 + risk_level 低 = 稳；confidence 低 + risk_level 高 = 悬
 
 只输出纯JSON，不要markdown包裹。"""
 
@@ -81,18 +141,78 @@ Output requirements:
 - analysis: Analyze like you're gossiping with a friend. Don't say "not very engaged" — say something like "Look at these three replies: 'nope' / 'oh' / 'kinda.' Five words total." Use casual language, you can roast, but **keep it 3-5 sentences, max 200 words**. Quote specific lines from the chat (e.g. "she replied 'ok' / 'yeah' — all one-word answers") to ground your analysis. Always end with actionable next step. **Important: if items 4-8 above apply, pick the most important 1-2 — don't list them all.**
 - issues: Point out problems if any (≤25 words each), factual but not too serious. Prioritize issues from items 4-8.
 - risks: Flag what might go wrong if this continues, but in a "hey so here's the thing" tone, not a warning
-- reply_suggestions: Three styles of replies (≤3 sentences each). Must actually respond to what they just said, not robotic. Note: replies should "open doors" not "close them" — give them something to respond to.
+- reply_suggestions: Three styles of replies. Each must be an object with reply (reply text, ≤3 sentences, must respond to their latest message) and trajectory (trajectory prediction, see [Trajectory Prediction] section below). Replies should "open doors" not "close them" — give them something to respond to.
 - timing_advice: Give concrete advice like "They're sharing feelings right now — acknowledge that before changing the subject" or "Don't reply, let them come to you."
+- turning_point: Turning point detection (see [Turning Point Detection] section below), must output
 
 Tone: Casual, natural, slightly cheeky, but on point. Not like an elder giving advice — like a friend who's roasting you with love.
 
-Strictly prohibited:
-- Judging whether someone has feelings for the user
-- PUA or emotional manipulation
-- Fabricating facts not in the chat
-- Templated clichés like "wishing you the best"
-- Making decisions for the user
-- Creating anxiety or fear
+[Turning Point Detection]
+You must detect whether there is a meaningful conversation pattern change in this chat.
+A turning point means: at some moment in the conversation, observable communication patterns shifted. This includes:
+- Obvious drop in warmth / reply length (suddenly going from full sentences to one-worders)
+- Interaction imbalance (used to ask "you?" back, then stopped)
+- Loss of initiative (used to start topics, now only responds minimally)
+- Emotional engagement drop (used to use emoji/exclamation, now flat)
+- Topic continuation decline (used to expand on topics, now gives minimal replies)
+
+Strict rules for turning point detection:
+- ❌ Never make absolute judgments: don't say "they dislike you" or "they're brushing you off" — say "low engagement signals detected" or "initiative declined"
+- ❌ Never decide with a single signal: "replies got shorter" alone is NOT enough — need at least 2 supporting signals
+- ❌ Don't create anxiety: even when a turning point is detected, emphasize that shorter replies don't necessarily mean worse relationship — might be busy or context change
+- ✅ Must compare against earlier baseline: if they were brief from the start, that's not a turning point
+- ✅ Short replies in work scenarios are normal, reduce confidence
+- ✅ For chats >100 messages, only analyze the most recent 50
+- ✅ If fewer than 10 messages, output detected=false, explanation="Insufficient data to detect turning points"
+
+turning_point JSON format:
+{
+  "detected": true/false,
+  "confidence": 0.82,
+  "message_index": 18,
+  "quoted_message": "her: kinda busy lately~",
+  "signals": ["questioning stopped", "reply shortened", "engagement dropped"],
+  "risk_level": "low"/"medium"/"high",
+  "explanation": "Starting here, her replies became notably shorter and she stopped continuing the conversation thread."
+}
+
+If no turning point detected, set detected=false, signals=[], explanation can be "The conversation is relatively stable with no obvious shift signals." or explain why.
+
+[Trajectory Prediction]
+For each reply suggestion, predict the likely conversation trajectory if that reply were sent.
+
+You are NOT predicting: feelings, attraction, relationship outcomes.
+You ARE only predicting: how the conversation pattern may shift.
+
+Trend types:
+- warm_up: likely to warm up the vibe, increase interaction warmth
+- stable: likely to maintain current state, no significant change
+- cool_down: likely to further cool the conversation
+- conversation_end: higher risk of ending the conversation
+
+Each reply must include a trajectory object:
+{
+  "trend": "stable",
+  "confidence": "high",
+  "risk_level": "low",
+  "explanation": "Gives them space while keeping the door open for future conversation."
+}
+
+explanation requirements:
+- Use observational language (❌ "they'll like you more" → ✅ "reduces perceived social pressure")
+- 1-2 sentences, clear reasoning
+- Don't create anxiety
+
+Anti-misguidance rules:
+- ❌ No absolute judgments: don't say "they'll like you more" → "easier to maintain the conversation"
+- ❌ No pseudo-precise probabilities: don't say 73%, 62% → use "highly likely" / "moderately likely" / "less likely"
+- ❌ No emotional fortune-telling: don't say "you have a shot" / "no chance"
+- ✅ Trends based on observable conversation patterns, not emotional speculation
+
+confidence & risk_level rules:
+- confidence: how sure you are about this prediction (low/medium/high)
+- risk_level: risk of this reply backfiring (low/medium/high)
+- Note: high confidence + low risk = safe; low confidence + high risk = risky
 
 Output pure JSON only, do NOT wrap in markdown code blocks."""
 
@@ -778,7 +898,7 @@ Quick stats: other {features['other_msgs']}msgs(avg{features['avg_other_len']}c,
 {emoji_line}, {sentiment_line}
 Patterns: {features['notable_patterns']}
 
-As a perceptive friend, analyze this conversation. Output JSON only."""
+As a perceptive friend, analyze this conversation. **Must include turning_point detection field**. Output JSON only."""
         return f"""{relationship_extra}
 
 {fewshot_static}
@@ -793,7 +913,7 @@ As a perceptive friend, analyze this conversation. Output JSON only."""
 {emoji_line}，{sentiment_line}
 模式：{features['notable_patterns']}
 
-以一个懂你的朋友身份，分析这段对话。输出纯JSON。"""
+以一个懂你的朋友身份，分析这段对话。**必须包含 turning_point 拐点检测字段**。输出纯JSON。"""
 
     def _check_analysis_quality(self, data: dict, language: str) -> list[str]:
         """Post-hoc quality validation. Logs warnings for low-quality outputs.
@@ -848,7 +968,9 @@ As a perceptive friend, analyze this conversation. Output JSON only."""
         }
         fallbacks = fallback_zh if zh else fallback_en
         for style, content in suggestions.items():
-            if isinstance(content, str) and content.strip() == fallbacks.get(style, "").strip():
+            # Support both old (plain string) and new (dict with reply/trajectory) formats
+            reply_text = content.get("reply", "") if isinstance(content, dict) else content
+            if isinstance(reply_text, str) and reply_text.strip() == fallbacks.get(style, "").strip():
                 warnings.append(f"Reply '{style}' is generic fallback (no personalization)")
 
         # Check 4: Vague timing advice
@@ -948,10 +1070,35 @@ As a perceptive friend, analyze this conversation. Output JSON only."""
             "humorous": "用轻松的方式回应。",
             "mature": "保持稳重得体的交流。",
         }
+
+        def _parse_suggestion(raw: object, style_key: str) -> ReplySuggestion:
+            """Parse a single reply suggestion, handling both old (plain string) and new (dict with reply+trajectory) formats."""
+            if isinstance(raw, dict):
+                reply_text = str(raw.get("reply", default_fallbacks[style_key]))
+                traj_raw = raw.get("trajectory", {})
+                if not isinstance(traj_raw, dict):
+                    traj_raw = {}
+                trajectory = TrajectoryPrediction(
+                    trend=traj_raw.get("trend", "stable"),
+                    confidence=traj_raw.get("confidence", "medium"),
+                    risk_level=traj_raw.get("risk_level", "low"),
+                    explanation=str(traj_raw.get("explanation", "")),
+                )
+                return ReplySuggestion(reply=reply_text, trajectory=trajectory)
+            # Old format: plain string, no trajectory
+            reply_text = str(raw) if raw else default_fallbacks[style_key]
+            return ReplySuggestion(
+                reply=reply_text,
+                trajectory=TrajectoryPrediction(
+                    trend="stable", confidence="low", risk_level="low",
+                    explanation=("数据有限，无法预测走势。" if language == "zh" else "Insufficient data for trajectory prediction."),
+                ),
+            )
+
         reply_suggestions = ReplySuggestions(
-            natural=suggestions.get("natural", default_fallbacks["natural"]),
-            humorous=suggestions.get("humorous", default_fallbacks["humorous"]),
-            mature=suggestions.get("mature", default_fallbacks["mature"]),
+            natural=_parse_suggestion(suggestions.get("natural"), "natural"),
+            humorous=_parse_suggestion(suggestions.get("humorous"), "humorous"),
+            mature=_parse_suggestion(suggestions.get("mature"), "mature"),
         )
 
         # Coerce types: AI sometimes returns analysis as list or timing_advice as None
@@ -980,6 +1127,32 @@ As a perceptive friend, analyze this conversation. Output JSON only."""
         # Post-hoc quality check (non-blocking, log-only)
         self._check_analysis_quality(data, language)
 
+        # ── Parse turning_point ──
+        tp_data = data.get("turning_point", {})
+        if not isinstance(tp_data, dict):
+            tp_data = {}
+        # AI may return confidence as a string ("high"/"medium"/"low") instead of float
+        raw_confidence = tp_data.get("confidence", 0)
+        if isinstance(raw_confidence, str):
+            confidence_map = {"high": 0.85, "medium": 0.5, "low": 0.25}
+            raw_confidence = confidence_map.get(raw_confidence.lower(), 0.5)
+        try:
+            confidence_val = float(raw_confidence)
+        except (ValueError, TypeError):
+            confidence_val = 0.5
+        turning_point = TurningPoint(
+            detected=bool(tp_data.get("detected", False)),
+            confidence=confidence_val,
+            message_index=tp_data.get("message_index"),
+            quoted_message=tp_data.get("quoted_message"),
+            signals=tp_data.get("signals", []) if isinstance(tp_data.get("signals"), list) else [],
+            explanation=str(tp_data.get("explanation", "")),
+            risk_level=tp_data.get("risk_level", "low"),
+        )
+        # Validate risk_level
+        if turning_point.risk_level not in ("low", "medium", "high"):
+            turning_point.risk_level = "low"
+
         return ChatAnalysisResponse(
             chat_status=chat_status,
             analysis=raw_analysis,
@@ -987,4 +1160,5 @@ As a perceptive friend, analyze this conversation. Output JSON only."""
             risks=raw_risks,
             reply_suggestions=reply_suggestions,
             timing_advice=raw_timing,
+            turning_point=turning_point,
         )

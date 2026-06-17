@@ -1,0 +1,66 @@
+---
+description: ChatVibe 技术栈与目录结构（始终加载）
+alwaysApply: true
+enabled: true
+updatedAt: 2026-06-14T09:41:00.000Z
+provider: 
+---
+
+# 技术栈锁定（禁止替换，除非用户明确要求）
+
+| 层级 | 技术 | 备注 |
+|------|------|------|
+| 前端 | Next.js 16 (App Router) + React 19 + TypeScript | - |
+| 样式 | Tailwind CSS v4 | 不引入 CSS-in-JS |
+| 后端 | FastAPI + Python 3.11 + Pydantic v2 | - |
+| AI | 豆包 API（火山引擎 ARK，OpenAI 兼容协议） | - |
+| 存储 | SQLite（同步 sqlite3） | V1 不引入 PG/Redis/向量库 |
+| 部署 | 前端 Vercel / 后端 Railway | - |
+
+## 额外禁止
+
+- 不使用 next-intl 等重量级 i18n 库（当前 Context 方案足够）
+- 不使用 Axios（原生 fetch + AbortController 足够）
+- 不引入 Zustand/Redux 等状态管理库（用 React Context + 自定义 Hook）
+- 不使用 shadcn/ui（项目未引入，使用 Tailwind 手写组件）
+
+---
+
+# 目录结构约束（按实际代码，禁止随意新增目录）
+
+## Frontend
+
+```
+frontend/src/
+├── app/              # Next.js App Router 页面
+├── components/       # UI 组件（按功能分目录）
+│   ├── hero/         # 首页 Hero
+│   ├── chat-input/   # 输入框
+│   ├── result/       # 分析结果
+│   ├── feedback/     # 反馈与追踪
+│   └── ui/           # 通用 UI 组件
+├── lib/              # 工具库（api.ts, hooks, cache）
+├── contexts/         # React Context
+└── locales/          # 国际化（en.ts, zh.ts, types.ts）
+```
+
+## Backend
+
+```
+backend/app/
+├── main.py           # FastAPI 入口 + 中间件注册
+├── core/config.py    # 配置管理
+├── routers/          # API 路由（按领域分文件）
+├── services/         # 业务逻辑（AI、清洗、存储）
+├── schemas/          # Pydantic 请求/响应模型
+├── middleware/       # 限流、安全头
+└── models/           # （预留，当前未使用）
+```
+
+## 规则
+
+- 组件按功能分目录，不按类型
+- 通用 UI 组件放 `components/ui/`
+- 业务逻辑放 `lib/`（API 调用、自定义 Hook、缓存）
+- 每个组件一个文件，文件名 PascalCase
+- 数据库操作全部在 `services/storage.py`，路由层不直接写 SQL

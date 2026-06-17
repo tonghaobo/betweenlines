@@ -1,11 +1,12 @@
 import { useI18n } from "@/contexts/I18nContext";
 import { ReplyCard } from "./ReplyCard";
+import type { ReplySuggestion } from "@/lib/api";
 
 interface ReplySuggestionsProps {
   suggestions: {
-    natural: string;
-    humorous: string;
-    mature: string;
+    natural: ReplySuggestion;
+    humorous: ReplySuggestion;
+    mature: ReplySuggestion;
   };
 }
 
@@ -35,17 +36,21 @@ export function ReplySuggestions({ suggestions }: ReplySuggestionsProps) {
         {t.result.replyHint}
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {replyStyles.map((style, index) => (
-          <ReplyCard
-            key={style.key}
-            style={style.key}
-            label={t.result.replyStyles[style.key]}
-            description={t.result.replyStyles[`${style.key}Desc` as keyof typeof t.result.replyStyles] as string}
-            content={suggestions[style.key]}
-            colorClass={colorClassMap[style.key]}
-            delay={index * 150}
-          />
-        ))}
+        {replyStyles.map((style, index) => {
+          const suggestion = suggestions[style.key];
+          return (
+            <ReplyCard
+              key={style.key}
+              style={style.key}
+              label={t.result.replyStyles[style.key]}
+              description={t.result.replyStyles[`${style.key}Desc` as keyof typeof t.result.replyStyles] as string}
+              content={suggestion?.reply ?? ""}
+              trajectory={suggestion?.trajectory}
+              colorClass={colorClassMap[style.key]}
+              delay={index * 150}
+            />
+          );
+        })}
       </div>
     </div>
   );

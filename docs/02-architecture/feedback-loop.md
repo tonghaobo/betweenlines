@@ -1,6 +1,5 @@
 # 用户反馈闭环系统
 
-> 版本：V1 → V3  
 > 目标：通过真实用户反馈，逐步提高聊天分析质量与回复建议效果。
 
 ---
@@ -32,29 +31,11 @@
 4. Prompt Optimization（Prompt 优化）
 5. Similar Case Retrieval（相似案例检索）
 
----
-
-## 实现状态总览
-
-| Phase | 模块 | 任务 | 状态 |
-|-------|------|------|------|
-| 1 | Feedback Collection | F1.1 分析后反馈组件 | ✅ 已实现 |
-| 1 | Feedback Collection | F1.2 负反馈原因采集 | ✅ 已实现 |
-| 1 | Feedback Collection | F1.3 正反馈原因采集 | ✅ 已实现 |
-| 1 | Feedback Collection | F1.4 Feedback API | ✅ 已实现 |
-| 1 | Feedback Collection | F1.5 正面反馈自动收集优质案例（Few-Shot 学习） | ✅ 已实现 |
-| 2 | Outcome Tracking | F2.1 建议采用率采集 | ✅ 已实现 |
-| 2 | Outcome Tracking | F2.2 Follow-up 回访系统 | ✅ 已实现 |
-| 2 | Outcome Tracking | F2.3 Outcome API | ✅ 已实现 |
-| 3 | Data Labeling | F3.1 自动标签生成 | ❌ 待实现 |
-| 3 | Data Labeling | F3.2 标签数据库 | ❌ 待实现 |
-| 4 | Prompt Optimization | F4.1 错误案例 Dashboard | ❌ 待实现 |
-| 4 | Prompt Optimization | F4.2 Prompt Revision SOP | ❌ 待实现 |
-| 5 | Similar Case Retrieval | F5 相似案例推荐 | ❌ V3 阶段 |
+> 实现状态和路线图见 [plan/roadmap.md](../../plan/roadmap.md)
 
 ---
 
-## Phase 1：基础反馈系统（已实现）
+## Phase 1：基础反馈系统
 
 ### F1.1 分析后反馈组件
 
@@ -82,7 +63,7 @@
 - 请求体：`{ analysis_id, helpful, reason: string[], comment: string }`
 - 数据表：`feedback` (id, analysis_id, helpful, reason, comment, created_at)
 
-### F1.5 正面反馈自动收集优质案例（Few-Shot 学习）🆕
+### F1.5 正面反馈自动收集优质案例（Few-Shot 学习）
 
 当用户点击 👍 时，自动将当前分析的统计特征和 AI 输出保存为优质案例：
 
@@ -108,7 +89,7 @@
 
 ---
 
-## Phase 2：Outcome Tracking（已实现）
+## Phase 2：Outcome Tracking
 
 ### F2.1 建议采用率采集
 
@@ -130,7 +111,7 @@
 
 ---
 
-## Phase 3：标签系统（待实现）
+## Phase 3：标签系统
 
 ### F3.1 自动标签生成
 
@@ -140,18 +121,34 @@
 - `other_style`：热情型 / 礼貌型 / 高冷型 / 慢热型
 - `user_issue`：查户口 / 太急 / 输出太多 / 幽默不足
 
+**实现方式**：混合方式（规则层 + AI 补充层）
+- 规则层（零成本）：关键词匹配 + features 推断，置信度 >= 0.6 直接采用
+- AI 补充层：规则层置信度不足时，调用 AI 补全标签（预留，当前未启用）
+
+**提取时机**：每次 `/analyze` 请求完成后，在 `finally` 块中异步提取并存储（非阻塞）
+
+**后端文件**：`services/tag_extractor.py`
+
 ### F3.2 标签数据库
 
-新增表 `analysis_tags`：analysis_id, conversation_stage, other_style, user_issue, outcome
+新增表 `analysis_tags`：id, analysis_id, conversation_stage, other_style, user_issue, label_source, created_at
+
+**API 端点**：
+- `GET /api/v1/tags/stats` — 标签分布统计
+
+**前端组件**：`components/result/AnalysisTags.tsx` — 在分析结果页展示 3 个彩色标签
 
 ---
 
-## Phase 4：Prompt 优化闭环（待实现）
+## Phase 4：Prompt 优化闭环
 
 ### F4.1 错误案例 Dashboard
 
-- 统计最多差评原因
-- 使用 Recharts 展示
+- 页面：`/admin/quality`
+- 统计卡片：总错误数、主要错误原因 Top 3、各对话阶段错误分布
+- CSS 柱状图展示错误原因分布（纯 CSS，不引入 Recharts）
+- 分页错误案例列表（支持标签筛选查看）
+- 后端 API：`GET /api/v1/quality/stats` + `GET /api/v1/quality/errors`
 
 ### F4.2 Prompt Revision SOP
 
@@ -159,10 +156,11 @@
 
 ---
 
-## Phase 5：相似案例推荐（V3 阶段）
+## Phase 5：相似案例推荐（设计预留，V3 阶段）
 
 - 逻辑：用户聊天 → embedding → 找相似聊天 → 找成功案例 → 给建议
 - 数据表：`successful_cases` (chat_embedding, conversation_stage, reply_style, reply_text, outcome)
+- **当前不实现**，待 V3 阶段评估向量检索方案后再启动
 
 ---
 

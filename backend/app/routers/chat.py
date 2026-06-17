@@ -16,6 +16,7 @@ from app.schemas.chat import (
     UsageResponse,
     ShareRewardRequest,
     ShareRewardResponse,
+    TagStatsResponse,
 )
 from app.services.doubao_service import DoubaoService
 from app.services.chat_cleaner import clean_chat_content, validate_chat_format, is_potentially_harmful
@@ -60,6 +61,14 @@ async def analyze_chat(
     )
     if cached is not None:
         logger.info(f"Returning cached result for {request_body.anonymous_user_id[:12]}...")
+        # Compat: old cached results may lack turning_point / analysis_id
+        if "turning_point" not in cached:
+            cached["turning_point"] = {
+                "detected": False, "confidence": 0, "message_index": None,
+                "quoted_message": None, "signals": [], "explanation": "", "risk_level": "low",
+            }
+        if "analysis_id" not in cached:
+            cached["analysis_id"] = None
         return ChatAnalysisResponse(**cached)
 
     # ── Daily usage check via anonymous_user_id ──
@@ -74,6 +83,9 @@ async def analyze_chat(
     chat_length = len(request_body.chat_content)
     chat_status_result = None
     error_msg = None
+    tp_detected = None
+    tp_confidence = None
+    analysis_result = None
 
     try:
         if len(request_body.chat_content.strip()) < settings.MIN_CHAT_LENGTH:
@@ -103,30 +115,34 @@ async def analyze_chat(
         from app.services.chat_normalizer import normalize_chat
         cleaned_content = normalize_chat(cleaned_content)
 
-        result = await service.analyze_chat(cleaned_content, request_body.relationship_type, request_body.language or "zh")
-        chat_status_result = result.chat_status.value
+        analysis_result = await service.analyze_chat(cleaned_content, request_body.relationship_type, request_body.language or "zh")
+        chat_status_result = analysis_result.chat_status.value
+        tp_detected = analysis_result.turning_point.detected
+        tp_confidence = analysis_result.turning_point.confidence
 
         # Cache result to prevent re-analyzing same content on refresh
         set_cached_result(
             request_body.chat_content,
             request_body.anonymous_user_id,
             request_body.relationship_type,
-            result.model_dump(),
+            analysis_result.model_dump(),
         )
 
         # Store for potential good_case saving (few-shot learning)
         # Only features are stored (not raw chat content) per privacy policy
         from app.services.doubao_service import DoubaoService
+        import json as json_mod
         ds = DoubaoService()
         features = ds._extract_chat_features(cleaned_content)
         _recent_analyses[request_body.anonymous_user_id] = {
             "features": features,
             "relationship_type": request_body.relationship_type,
             "language": request_body.language or "zh",
-            "analysis_json": result.model_dump_json(),
+            "analysis_json": analysis_result.model_dump_json(),
+            "features_json": json_mod.dumps(features, ensure_ascii=False),
         }
 
-        return result
+        return analysis_result
 
     except HTTPException:
         # Undo the usage increment on failure
@@ -146,13 +162,34 @@ async def analyze_chat(
         duration_ms = (time.time() - start_time) * 1000
         try:
             from app.services.storage import save_analysis_log
-            save_analysis_log(
+            # Build features JSON for review comparison
+            features_json_str = None
+            if request_body.anonymous_user_id in _recent_analyses:
+                features_json_str = _recent_analyses[request_body.anonymous_user_id].get("features_json")
+
+            analysis_id = save_analysis_log(
                 chat_length=chat_length,
                 chat_status=chat_status_result,
                 duration_ms=duration_ms,
                 error=error_msg,
                 relationship_type=request_body.relationship_type,
+                turning_point_detected=tp_detected,
+                turning_point_confidence=tp_confidence,
+                features_json=features_json_str,
             )
+            # Set analysis_id on the response if available (non-error path)
+            if analysis_id and analysis_result is not None:
+                analysis_result.analysis_id = analysis_id
+
+            # Phase 3: Auto-tag extraction (non-blocking)
+            if analysis_id and analysis_result is not None and chat_status_result:
+                _extract_and_save_tags(
+                    analysis_id=analysis_id,
+                    analysis_text=analysis_result.analysis,
+                    chat_status=chat_status_result,
+                    issues=analysis_result.issues,
+                    features_json=features_json_str,
+                )
         except Exception as log_error:
             logger.warning(f"Failed to save analysis log: {log_error}")
 
@@ -164,6 +201,35 @@ def _undo_usage_increment(anonymous_user_id: str, usage_type: str):
         decrement_daily_usage(anonymous_user_id, usage_type)
     except Exception as e:
         logger.warning(f"Failed to undo usage increment: {e}")
+
+
+def _extract_and_save_tags(
+    analysis_id: int,
+    analysis_text: str,
+    chat_status: str,
+    issues: list[str],
+    features_json: str | None = None,
+):
+    """Extract and save analysis tags (non-blocking, failure is silent)."""
+    try:
+        from app.services.tag_extractor import extract_tags
+        from app.services.storage import save_analysis_tags
+
+        tags = extract_tags(
+            analysis_text=analysis_text,
+            chat_status=chat_status,
+            issues=issues,
+            features_json=features_json,
+        )
+        save_analysis_tags(
+            analysis_id=analysis_id,
+            conversation_stage=tags["conversation_stage"],
+            other_style=tags["other_style"],
+            user_issue=tags["user_issue"],
+            label_source=tags["label_source"],
+        )
+    except Exception as e:
+        logger.warning(f"Tag extraction failed (non-blocking): {e}")
 
 
 @router.post("/analyze-screenshot", response_model=ScreenshotAnalysisResponse)
@@ -391,3 +457,14 @@ async def claim_share_reward(request: ShareRewardRequest):
     except Exception as e:
         logger.warning(f"Share reward claim failed: {e}")
         return ShareRewardResponse(granted=False, bonus_count=0, message="Reward claim failed")
+
+
+@router.get("/tags/stats", response_model=TagStatsResponse)
+async def get_tag_stats():
+    """Get tag distribution statistics (Phase 3)."""
+    try:
+        from app.services.storage import get_tag_stats as compute_tag_stats
+        return compute_tag_stats()
+    except Exception as e:
+        logger.warning(f"Failed to get tag stats: {e}")
+        return TagStatsResponse()

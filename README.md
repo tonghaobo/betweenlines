@@ -28,7 +28,7 @@
 | [前端架构](./docs/03-frontend/README.md) | 组件树、状态管理、i18n |
 | [后端架构](./docs/04-backend/README.md) | API、服务层、中间件 |
 | [问题排查](./docs/05-troubleshooting/README.md) | 已知问题与解决方案 |
-| [交付计划](./plans/) | 14天开发计划文档 |
+| [项目规划](./plan/) | 路线图与部署清单 |
 
 ## 产品原则
 

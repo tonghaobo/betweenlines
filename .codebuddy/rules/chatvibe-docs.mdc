@@ -1,0 +1,46 @@
+---
+description: 文档结构与映射表（触及 docs/ 或 .md 时加载详细参考）
+alwaysApply: false
+enabled: true
+updatedAt: 2026-06-14T09:51:00.000Z
+provider: 
+paths:
+  - "docs/**"
+  - "**/*.md"
+---
+
+# 文档规范（详细参考）
+
+> ⚠️ 「提交前必须检查文档」的义务已在 `chatvibe-core` 中定义（始终生效）。本文件仅在 AI 实际触及文档文件时加载，提供详细的映射表和格式要求。
+
+## 结构
+
+```
+docs/
+├── 00-project-context/   # 项目概览 + 架构总览
+├── 01-setup/             # 本地启动指南
+├── 02-architecture/      # 反馈闭环系统设计
+├── 03-frontend/          # 前端架构详解
+├── 04-backend/           # 后端架构详解
+└── 05-troubleshooting/   # 问题排查
+```
+
+## 代码改动 → 文档映射（完整版）
+
+- 新增/修改 API 端点 → 更新 `04-backend/README.md`
+- 新增/修改前端组件 → 更新 `03-frontend/README.md`
+- 新增/修改数据库表 → 更新 `01-architecture.md` + `04-backend/README.md`
+- 新增/修改环境变量或启动配置 → 更新 `01-setup/本地启动指南.md`
+- 新增功能 → 更新 `00-overview.md`
+- 新增部署方式（如 Docker）→ 在 `01-setup/` 下新建对应文档（如 `容器部署指南.md`）
+- 修复已知问题 → 更新 `05-troubleshooting/README.md`
+
+**新板块无对应文档时**：
+- 如果改动涉及全新领域（如 Docker 部署、CI/CD、监控告警等），在 `docs/` 下新建子目录和 README
+- 新增文档后，同步更新 `00-project-context/README.md` 的文档索引
+
+**格式要求**：
+- 文档用中文，代码注释用英文
+- 不在项目根目录放散落文档，统一归入 `docs/`
+- 不提交 PDF 文档
+- 新增文档后，同步更新 `00-project-context/README.md` 的文档索引

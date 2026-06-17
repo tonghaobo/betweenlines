@@ -7,17 +7,95 @@ const MAX_RETRIES = 2;
 
 export type RelationshipType = "romantic" | "friend" | "family" | "coworker" | "other";
 
+export interface TurningPoint {
+  detected: boolean;
+  confidence: number;
+  message_index?: number;
+  quoted_message?: string;
+  signals: string[];
+  explanation: string;
+  risk_level: "low" | "medium" | "high";
+}
+
+export interface TrajectoryPrediction {
+  trend: "warm_up" | "stable" | "cool_down" | "conversation_end";
+  confidence: "low" | "medium" | "high";
+  risk_level: "low" | "medium" | "high";
+  explanation: string;
+}
+
+export interface ReplySuggestion {
+  reply: string;
+  trajectory: TrajectoryPrediction;
+}
+
 export interface ChatAnalysisResponse {
+  analysis_id?: number;
   chat_status: string;
   analysis: string;
   issues: string[];
   risks: string[];
   reply_suggestions: {
-    natural: string;
-    humorous: string;
-    mature: string;
+    natural: ReplySuggestion;
+    humorous: ReplySuggestion;
+    mature: ReplySuggestion;
   };
   timing_advice: string;
+  turning_point: TurningPoint;
+}
+
+// ── Review Types ──
+
+export type ReviewStatus = "improved" | "similar" | "worsened" | "insufficient_data";
+export type ChangeDirection = "up" | "down" | "same";
+
+export interface ConversationChanges {
+  initiative: ChangeDirection;
+  reply_length: ChangeDirection;
+  emotional_engagement: ChangeDirection;
+  coldness_risk: ChangeDirection;
+  topic_continuity: ChangeDirection;
+}
+
+export interface ReviewResponse {
+  review_id?: number;
+  review_status: ReviewStatus;
+  changes: ConversationChanges;
+  previous_advice_effectiveness: string;
+  summary: string;
+  next_step_advice: string;
+}
+
+export async function reviewChat(
+  analysisId: number,
+  newChatContent: string,
+  relationshipType: RelationshipType = "romantic",
+  language?: string,
+): Promise<ReviewResponse> {
+  return retryableRequest(async () => {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/review`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysis_id: analysisId,
+          new_chat_content: newChatContent,
+          relationship_type: relationshipType,
+          language: language || "zh",
+        }),
+      },
+      REQUEST_TIMEOUT,
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      const detail = errorBody.detail || `Review request failed with status ${response.status}`;
+      throw new ApiError(detail, response.status);
+    }
+
+    return response.json() as Promise<ReviewResponse>;
+  });
 }
 
 export interface ScreenshotAnalysisResponse {

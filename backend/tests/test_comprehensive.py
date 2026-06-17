@@ -201,8 +201,9 @@ def check_reply_quality(suggestions: dict) -> bool:
         "保持稳重得体的交流",
     ]
     for style, content in suggestions.items():
+        reply_text = content.get("reply", "") if isinstance(content, dict) else str(content)
         for fb in generic_fallbacks:
-            if content.strip() == fb:
+            if reply_text.strip() == fb:
                 return False
     return True
 
@@ -455,44 +456,89 @@ async def run_validation_tests() -> list[tuple[str, bool, str]]:
 # ═══════════════════════════════════════════════════════════
 
 async def main():
+    import sys
     t_total = time.time()
+
+    # ── Parse args ──
+    no_ai = "--no-ai" in sys.argv or "--phase1-only" in sys.argv
+    ai_only = "--ai" in sys.argv
+    # Parse specific test names: --test "场景名1,场景名2"
+    specific_tests = None
+    for arg in sys.argv:
+        if arg.startswith("--test="):
+            specific_tests = arg.split("=", 1)[1].split(",")
+            specific_tests = [t.strip() for t in specific_tests]
+            break
+
+    mode_label = ""
+    if no_ai:
+        mode_label = "（仅校验，不调 AI）"
+    elif ai_only:
+        mode_label = "（仅 AI 场景测试）"
+        if specific_tests:
+            mode_label += f" [{len(specific_tests)} 个指定场景]"
+    elif specific_tests:
+        mode_label = f"（校验 + {len(specific_tests)} 个指定场景）"
+    else:
+        mode_label = f"（全量：校验 + {len(TEST_CASES)} 个 AI 场景）"
+        print(f"\n  ⚠️  全量测试将消耗约 {len(TEST_CASES) * 3}k ~ {len(TEST_CASES) * 8}k tokens")
+        print(f"  💡 日常提交请用: python tests/test_comprehensive.py --no-ai")
+        print(f"  💡 指定场景请用: python tests/test_comprehensive.py --test=解题模式_典型,偏冷淡")
 
     print("=" * 70)
     print("  BetweenLines 综合质量 & 性能测试套件")
-    print(f"  测试用例: {len(TEST_CASES)} 个场景 + 6 个校验")
+    print(f"  {mode_label}")
     print("=" * 70)
 
-    # ── Phase 1: Fast Validation Tests ──
-    print_header("PHASE 1: 快速校验测试")
-    val_results = await run_validation_tests()
-    for name, ok, detail in val_results:
-        icon = "✅" if ok else "❌"
-        print(f"  {icon} {name}: {detail}")
-    val_pass = sum(1 for _, ok, _ in val_results if ok)
-    print(f"\n  校验通过: {val_pass}/{len(val_results)}")
+    # ── Phase 1: Fast Validation Tests (always run) ──
+    if not ai_only:
+        print_header("PHASE 1: 快速校验测试")
+        val_results = await run_validation_tests()
+        for name, ok, detail in val_results:
+            icon = "✅" if ok else "❌"
+            print(f"  {icon} {name}: {detail}")
+        val_pass = sum(1 for _, ok, _ in val_results if ok)
+        print(f"\n  校验通过: {val_pass}/{len(val_results)}")
+    else:
+        val_results = []
+        val_pass = 0
 
     # ── Phase 2: AI Analysis Scenarios ──
-    print_header("PHASE 2: AI 分析场景测试 (需要调用模型)")
     results: list[TestResult] = []
 
-    for i, (name, config) in enumerate(TEST_CASES.items()):
-        print(f"\n  [{i+1}/{len(TEST_CASES)}] 测试: {name}...", end=" ", flush=True)
-        result = await run_single_test(name, config)
-        results.append(result)
+    if not no_ai:
+        print_header("PHASE 2: AI 分析场景测试 (需要调用模型)")
 
-        status_icon = "✅" if not result.errors else "❌"
-        print(f"{status_icon} "
-              f"耗时{result.duration_ms//1000}s "
-              f"分析{result.analysis_len}字 "
-              f"状态={result.chat_status}")
+        # Determine test scope
+        if specific_tests:
+            test_items = [(n, c) for n, c in TEST_CASES.items() if n in specific_tests]
+            if not test_items:
+                print(f"  ❌ 未找到指定场景: {specific_tests}")
+                print(f"  可用场景: {list(TEST_CASES.keys())}")
+                return 1
+        else:
+            test_items = list(TEST_CASES.items())
 
-        # Rate-limit avoidance: 2s gap between AI requests
-        if i < len(TEST_CASES) - 1:
-            await asyncio.sleep(2.0)
+        for i, (name, config) in enumerate(test_items):
+            print(f"\n  [{i+1}/{len(test_items)}] 测试: {name}...", end=" ", flush=True)
+            result = await run_single_test(name, config)
+            results.append(result)
 
-    # ── Reports ──
-    print_per_scenario(results)
-    print_summary(results)
+            status_icon = "✅" if not result.errors else "❌"
+            print(f"{status_icon} "
+                  f"耗时{result.duration_ms//1000}s "
+                  f"分析{result.analysis_len}字 "
+                  f"状态={result.chat_status}")
+
+            # Rate-limit avoidance: 2s gap between AI requests
+            if i < len(test_items) - 1:
+                await asyncio.sleep(2.0)
+
+        # ── Reports ──
+        print_per_scenario(results)
+        print_summary(results)
+    else:
+        print_header("PHASE 2: AI 分析场景测试（已跳过）")
 
     total_time = time.time() - t_total
     print(f"\n  总耗时: {total_time:.0f}s")

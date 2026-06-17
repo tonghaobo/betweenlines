@@ -1,0 +1,45 @@
+---
+description: 前端编码规范（触及前端文件时加载）
+alwaysApply: false
+enabled: true
+updatedAt: 2026-06-14T09:41:00.000Z
+provider: 
+paths:
+  - "frontend/**"
+---
+
+# UI 约束（强制）
+
+## 风格
+- 极简、SaaS 风格、类 Linear / Notion
+- 移动端优先、响应式、清晰间距
+
+## 禁止
+- 花哨动画
+- 恋爱风 UI
+- 多余装饰
+- 非必要渐变
+- 内联 style 或独立 CSS 文件（统一用 Tailwind）
+
+---
+
+# 前端编码规范
+
+## 组件
+- 页面级组件使用 `"use client"` 指令
+- 组件 props 必须定义 TypeScript 接口
+- 复杂状态管理使用自定义 Hook（参考 `useChatAnalysis`），不直接写 useState 链
+
+## 国际化
+- **所有用户可见文字必须走 i18n**，禁止硬编码中/英文字符串
+- `en.ts` 是类型权威（`Locale` 类型 = `typeof en`）
+- `zh.ts` 必须用 `satisfies typeof en`，保证中英文 key 完全一致
+- 新增文案：先改 `en.ts` → 再改 `zh.ts`
+- SSR 安全：首次渲染固定 `en`，客户端 `useEffect` 恢复用户选择
+
+## API 调用
+- 所有后端调用走 `lib/api.ts`，禁止组件中直接 fetch
+- 超时控制：`AbortController` + `fetchWithTimeout`
+- 分析类接口：自动重试（指数退避，最多 2 次）
+- 反馈/结果类接口：不重试（5s 超时）
+- 错误分类：`validation` / `timeout` / `network` / `server` / `rate_limit`

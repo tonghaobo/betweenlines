@@ -11,10 +11,42 @@ class ChatStatus(str, Enum):
     HIGH_RISK = "对话风险较高"
 
 
+RiskLevel = Literal["low", "medium", "high"]
+
+
+class TurningPoint(BaseModel):
+    """聊天拐点检测结果"""
+    detected: bool = Field(..., description="是否检测到拐点")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="置信度 0~1")
+    message_index: Optional[int] = Field(None, description="拐点消息序号")
+    quoted_message: Optional[str] = Field(None, description="拐点处的引用消息")
+    signals: list[str] = Field(default_factory=list, description="检测到的信号标签")
+    explanation: str = Field("", description="拐点原因解释")
+    risk_level: RiskLevel = Field("low", description="风险等级: low/medium/high")
+
+
 class ReplyStyle(str, Enum):
     NATURAL = "natural"
     HUMOROUS = "humorous"
     MATURE = "mature"
+
+
+TrendType = Literal["warm_up", "stable", "cool_down", "conversation_end"]
+ConfidenceLevel = Literal["low", "medium", "high"]
+
+
+class TrajectoryPrediction(BaseModel):
+    """对话走势预测——每条回复建议的可能走向"""
+    trend: TrendType = Field(..., description="走势类型: warm_up/stable/cool_down/conversation_end")
+    confidence: ConfidenceLevel = Field("medium", description="置信度: low/medium/high")
+    risk_level: RiskLevel = Field("low", description="风险等级: low/medium/high")
+    explanation: str = Field("", description="走势原因解释")
+
+
+class ReplySuggestion(BaseModel):
+    """单条回复建议，包含走势预测"""
+    reply: str = Field(..., description="回复文本")
+    trajectory: TrajectoryPrediction = Field(..., description="走势预测")
 
 
 RelationshipType = Literal["romantic", "friend", "family", "coworker", "other"]
@@ -55,18 +87,52 @@ class ScreenshotAnalysisResponse(BaseModel):
 
 # 响应 Schema
 class ReplySuggestions(BaseModel):
-    natural: str = Field(..., description="自然版回复")
-    humorous: str = Field(..., description="幽默版回复")
-    mature: str = Field(..., description="成熟版回复")
+    natural: ReplySuggestion = Field(..., description="自然版回复+走势")
+    humorous: ReplySuggestion = Field(..., description="幽默版回复+走势")
+    mature: ReplySuggestion = Field(..., description="成熟版回复+走势")
 
 
 class ChatAnalysisResponse(BaseModel):
+    analysis_id: Optional[int] = Field(None, description="分析记录ID，用于复盘关联")
     chat_status: ChatStatus = Field(..., description="当前互动状态")
     analysis: str = Field(..., description="互动分析描述")
     issues: List[str] = Field(default_factory=list, description="发现的聊天问题")
     risks: List[str] = Field(default_factory=list, description="风险提醒")
     reply_suggestions: ReplySuggestions = Field(..., description="回复建议")
     timing_advice: str = Field(..., description="节奏建议")
+    turning_point: TurningPoint = Field(..., description="聊天拐点检测结果")
+
+
+# ── Review (Post-Reply) Schemas ──
+
+ReviewStatus = Literal["improved", "similar", "worsened", "insufficient_data"]
+
+ChangeDirection = Literal["up", "down", "same"]
+
+
+class ConversationChanges(BaseModel):
+    """维度变化——对比上次和本次聊天的变化方向"""
+    initiative: ChangeDirection = "same"
+    reply_length: ChangeDirection = "same"
+    emotional_engagement: ChangeDirection = "same"
+    coldness_risk: ChangeDirection = "same"
+    topic_continuity: ChangeDirection = "same"
+
+
+class ReviewRequest(BaseModel):
+    analysis_id: int = Field(..., description="上次分析的记录ID")
+    new_chat_content: str = Field(..., min_length=1, description="后续聊天内容")
+    relationship_type: RelationshipType = Field("romantic", description="关系类型")
+    language: Optional[str] = Field("zh", description="输出语言")
+
+
+class ReviewResponse(BaseModel):
+    review_id: Optional[int] = Field(None, description="复盘记录ID")
+    review_status: ReviewStatus = Field(..., description="复盘结果: improved/similar/worsened/insufficient_data")
+    changes: ConversationChanges = Field(default_factory=ConversationChanges, description="各维度变化方向")
+    previous_advice_effectiveness: str = Field("", description="上次建议有效性评估")
+    summary: str = Field("", description="复盘总结")
+    next_step_advice: str = Field("", description="下一步建议")
 
 
 class FeedbackRequest(BaseModel):
@@ -166,3 +232,44 @@ class ShareRewardResponse(BaseModel):
     granted: bool = True
     bonus_count: int = 1
     message: str = "Reward granted!"
+
+
+# ── Tag schemas (Phase 3) ──
+
+class AnalysisTags(BaseModel):
+    conversation_stage: str = ""
+    other_style: str = ""
+    user_issue: str = ""
+    label_source: str = "rule"
+
+
+class TagStatsResponse(BaseModel):
+    total_tagged: int = 0
+    conversation_stage_dist: dict[str, int] = Field(default_factory=dict)
+    other_style_dist: dict[str, int] = Field(default_factory=dict)
+    user_issue_dist: dict[str, int] = Field(default_factory=dict)
+
+
+# ── Quality dashboard schemas (Phase 4) ──
+
+class ErrorCaseItem(BaseModel):
+    id: int
+    analysis_id: str = ""
+    reason: str = ""
+    comment: str = ""
+    chat_status: str = ""
+    conversation_stage: str = ""
+    other_style: str = ""
+    user_issue: str = ""
+    created_at: str = ""
+
+
+class ErrorCasesResponse(BaseModel):
+    cases: list[ErrorCaseItem] = Field(default_factory=list)
+    total: int = 0
+
+
+class ErrorCaseStatsResponse(BaseModel):
+    total_errors: int = 0
+    reason_distribution: dict[str, int] = Field(default_factory=dict)
+    stage_error_distribution: dict[str, int] = Field(default_factory=dict)

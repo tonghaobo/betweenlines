@@ -143,3 +143,7 @@ async def health_check():
 # 注册路由
 from app.routers import chat
 app.include_router(chat.router)
+from app.routers import review
+app.include_router(review.router)
+from app.routers import quality
+app.include_router(quality.router)

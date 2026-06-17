@@ -35,6 +35,9 @@ data/
 playwright-report/
 test-results/
 
+# Generated content
+xhs_docs/
+
 # Python
 *.egg-info/
 venv/

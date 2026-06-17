@@ -3,13 +3,16 @@ import { StatusBadge } from "./StatusBadge";
 import { AnalysisCard } from "./AnalysisCard";
 import { ReplySuggestions } from "./ReplySuggestions";
 import { TimingAdvice } from "./TimingAdvice";
+import { TurningPointCard } from "./TurningPointCard";
+import AnalysisTags from "./AnalysisTags";
 import { useI18n } from "@/contexts/I18nContext";
 
 interface ResultPageProps {
   data: ChatAnalysisResponse;
+  tags?: { conversation_stage: string; other_style: string; user_issue: string } | null;
 }
 
-export function ResultPage({ data }: ResultPageProps) {
+export function ResultPage({ data, tags }: ResultPageProps) {
   const { t } = useI18n();
 
   return (
@@ -21,11 +24,15 @@ export function ResultPage({ data }: ResultPageProps) {
         <StatusBadge status={data.chat_status} />
       </div>
 
+      <TurningPointCard data={data.turning_point} />
+
       <AnalysisCard
         analysis={data.analysis}
         issues={data.issues}
         risks={data.risks}
       />
+
+      <AnalysisTags tags={tags || null} />
 
       <ReplySuggestions suggestions={data.reply_suggestions} />
 
