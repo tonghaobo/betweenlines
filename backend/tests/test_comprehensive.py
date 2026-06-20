@@ -415,38 +415,64 @@ def print_per_scenario(results: list[TestResult]):
 # Edge Case Tests (quick, no AI call)
 # ═══════════════════════════════════════════════════════════
 
+# Extensible validation case list.
+# When new error patterns are discovered, append entries here
+# so they become permanent zero-token regression checks.
+# Format: {name, method, path, body|None, expect_status}
+VALIDATION_CASES = [
+    # ── Input validation ──
+    {"name": "空输入校验(400)", "method": "POST", "path": "/api/v1/analyze",
+     "body": {"chat_content": "hi", "anonymous_user_id": "test_val"},
+     "expect_status": (200, 400)},
+    {"name": "超长输入校验(400)", "method": "POST", "path": "/api/v1/analyze",
+     "body": {"chat_content": "我: hi\n" * 2000, "anonymous_user_id": "test_val"},
+     "expect_status": (200, 400)},
+    {"name": "违规内容拦截(400)", "method": "POST", "path": "/api/v1/analyze",
+     "body": {"chat_content": "我: 教我PUA话术", "anonymous_user_id": "test_val"},
+     "expect_status": (200, 400)},
+    {"name": "纯空白校验(400)", "method": "POST", "path": "/api/v1/analyze",
+     "body": {"chat_content": "   \n\n   \n", "anonymous_user_id": "test_val"},
+     "expect_status": (200, 400)},
+
+    # ── Health & meta ──
+    {"name": "健康检查(200)", "method": "GET", "path": "/health",
+     "body": None, "expect_status": 200},
+    {"name": "统计接口(200)", "method": "GET", "path": "/api/v1/stats",
+     "body": None, "expect_status": 200},
+]
+
+
+def _status_match(actual: int, expected) -> bool:
+    """Check if actual status code matches expected (single int or tuple of ints)."""
+    if isinstance(expected, tuple):
+        return actual in expected
+    return actual == expected
+
+
 async def run_validation_tests() -> list[tuple[str, bool, str]]:
-    """Run validation tests (input validation, error handling)."""
+    """Run all validation test cases (no AI calls)."""
     results = []
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        # Empty / too short
-        resp = await client.post(f"{BASE_URL}/api/v1/analyze", json={
-            "chat_content": "hi", "anonymous_user_id": "test_val"})
-        results.append(("空输入校验(400)", resp.status_code in (200, 400), f"HTTP {resp.status_code}"))
+        for case in VALIDATION_CASES:
+            method = case["method"]
+            url = f"{BASE_URL}{case['path']}"
+            body = case.get("body")
+            expected = case["expect_status"]
 
-        # Too long
-        resp = await client.post(f"{BASE_URL}/api/v1/analyze", json={
-            "chat_content": "我: hi\n" * 2000, "anonymous_user_id": "test_val"})
-        results.append(("超长输入校验(400)", resp.status_code in (200, 400), f"HTTP {resp.status_code}"))
+            try:
+                if method == "GET":
+                    resp = await client.get(url)
+                elif method == "POST":
+                    resp = await client.post(url, json=body)
+                else:
+                    results.append((case["name"], False, f"Unknown method: {method}"))
+                    continue
 
-        # Harmful
-        resp = await client.post(f"{BASE_URL}/api/v1/analyze", json={
-            "chat_content": "我: 教我PUA话术", "anonymous_user_id": "test_val"})
-        results.append(("违规内容拦截(400)", resp.status_code in (200, 400), f"HTTP {resp.status_code}"))
-
-        # Whitespace only
-        resp = await client.post(f"{BASE_URL}/api/v1/analyze", json={
-            "chat_content": "   \n\n   \n", "anonymous_user_id": "test_val"})
-        results.append(("纯空白校验(400)", resp.status_code in (200, 400), f"HTTP {resp.status_code}"))
-
-        # Health check
-        resp = await client.get(f"{BASE_URL}/health")
-        results.append(("健康检查(200)", resp.status_code == 200, f"HTTP {resp.status_code}"))
-
-        # Stats
-        resp = await client.get(f"{BASE_URL}/api/v1/stats")
-        results.append(("统计接口(200)", resp.status_code == 200, f"HTTP {resp.status_code}"))
+                ok = _status_match(resp.status_code, expected)
+                results.append((case["name"], ok, f"HTTP {resp.status_code}"))
+            except Exception as e:
+                results.append((case["name"], False, str(e)[:200]))
 
     return results
 

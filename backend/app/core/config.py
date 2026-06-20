@@ -25,6 +25,12 @@ class Settings:
     TEXT_MODELS: list[str] = _parse_model_list("TEXT_MODELS", "doubao-seed-1-8-251228")
     VISION_MODELS: list[str] = _parse_model_list("VISION_MODELS", "doubao-vision-pro-32k")
 
+    # ── 测试模式：设置后 TEXT_MODELS 只包含此模型，用于低成本快速验证 ──
+    _test_override = os.getenv("TEST_OVERRIDE_MODEL", "").strip()
+    if _test_override:
+        TEXT_MODELS = [_test_override]
+        VISION_MODELS = [_test_override]  # 视觉测试也用同一模型（非生产模式）
+
     # ── 向后兼容：仍支持单一 OPENAI_MODEL / VISION_MODEL ──
     # （如果 TEXT_MODELS 未设置，会自动从 OPENAI_MODEL 读取）
 

@@ -37,6 +37,7 @@ test-results/
 
 # Generated content
 xhs_docs/
+reddit_docs/
 
 # Python
 *.egg-info/
